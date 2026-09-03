@@ -219,7 +219,6 @@ alert("Backup restaurado correctamente. Este backup queda como fuente de verdad 
       let currentRes=await sb.from("limpieza_plan").select("id,ac_id,estado,tamano").eq("fecha",targetDate);
       if(currentRes.error)throw new Error("No se pudo leer limpieza_plan: "+currentRes.error.message);
       let current=currentRes.data||[];
-      if(cancelled)return {ok:false,cancelled:true};
       let byAc=new Map(current.map(S=>[String(S.ac_id),S]));
       let wanted=(day.items||[]).map(S=>({ac_id:String(S.id),tamano:S.tamano||"Grande",hecha:!!S.hecha}));
       let wantedIds=new Set(wanted.map(S=>S.ac_id));
