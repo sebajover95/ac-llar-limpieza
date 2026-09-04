@@ -222,7 +222,20 @@ alert("Backup restaurado correctamente. Este backup queda como fuente de verdad 
 
     let current=currentRes.data||[];
     let byAc=new Map(current.map(S=>[String(S.ac_id),S]));
-    let wanted=(day.items||[]).map(S=>({ac_id:String(S.id),tamano:S.tamano||"Grande",hecha:!!S.hecha}));
+    let wanted=[
+  ...(day.items||[]).map(S=>({
+    ac_id:String(S.id),
+    tamano:S.tamano||"Grande",
+    hecha:!!S.hecha
+  })),
+  ...(He||[])
+    .filter(S=>Ze(S.fecha)===targetDate)
+    .map(S=>({
+      ac_id:String(S.id),
+      tamano:S.tamano||"Grande",
+      hecha:false
+    }))
+];
     let wantedIds=new Set(wanted.map(S=>S.ac_id));
 
     for(let S of wanted){
