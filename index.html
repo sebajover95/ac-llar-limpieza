@@ -229,7 +229,7 @@ alert("Backup restaurado correctamente. Este backup queda como fuente de verdad 
     hecha:!!S.hecha
   })),
   ...(He||[])
-    .filter(S=>Ze(S.fecha)===targetDate)
+    .filter(S=>String(S.fecha).slice(0,10)===String(targetDate))
     .map(S=>({
       ac_id:String(S.id),
       tamano:S.tamano||"Grande",
