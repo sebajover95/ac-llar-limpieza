@@ -294,7 +294,48 @@ for(let G of He){
     });
   }
 }
-let Ff=[];Ii||or.forEach((G,ne)=>{let xe=Ga[Vr[ne]];G.release<=fa&&xe>fa&&Ff.push({key:G.key,id:G.id,tamano:G.tamano,modelo:G.modelo,nextDep:G.nextDep,previstaEl:xe,margenDias:G.margenDias})}),Ff.sort((G,ne)=>(G.nextDep?G.nextDep.getTime():1/0)-(ne.nextDep?ne.nextDep.getTime():1/0)||G.id.localeCompare(ne.id));let Is=new Map,Af=(G,ne)=>{Is.has(G)||Is.set(G,[]),Is.get(G).push(ne)};or.forEach((G,ne)=>Af(G.id,Ga[Vr[ne]])),dl.forEach(G=>Af(G.id,Ga[G.r])),Object.entries(Y||{}).forEach(([G,ne])=>{if(!ne||!ne.cleaned)return;let xe=Ta(G);xe&&Object.values(ne.cleaned).forEach(ve=>{Af(ve,xe)})});for(let[G,ne]of Is.entries()){let xe=Array.from(new Set(ne.map(ve=>ve.getTime()))).map(ve=>new Date(ve));xe.sort((ve,De)=>ve-De),Is.set(G,xe)}let hl=new Map;Object.entries(Y||{}).forEach(([G,ne])=>{if(!ne||!ne.cleaned)return;let xe=Ta(G);xe&&Object.values(ne.cleaned).forEach(ve=>{if(!ve)return;let De=hl.get(ve);(!De||xe>De)&&hl.set(ve,xe)})});for(let G of ge){if(G.dep<fa||G.dep>Pa||Hr.has(G.id))continue;let ne=Ze(G.dep);Gr[ne]||(Gr[ne]={date:G.dep,items:[]}),Gr[ne].salen||(Gr[ne].salen=[]);let xe,ve=null;if(!G.enSede)xe="otra_sede";else{let De=(Is.get(G.id)||[]).filter(ka=>ka<=G.dep);if(De.length){let ka=hl.get(G.id);ka&&ka<=G.dep?ve=ka:ve=De[De.length-1],xe=Ze(ve)===ne?"limpia_hoy":"limpiada",xe==="limpia_hoy"&&hl.has(G.id)&&(xe="limpiada")}else xe="ya_lista"}Gr[ne].salen.push({id:G.id,tamano:(Sf(`${U.get(G.id)||""} ${S.get(G.id)||""}`)||{}).nombre||"\u2014",modelo:U.get(G.id)||"",estado:xe,cleanedOn:ve})}re?ke.size&&Wr.push(`${ke.size} AC de otras sedes excluidas del c\xE1lculo (solo se cuenta ${i}).`):Wr.push("No se encontr\xF3 columna de sede (p.ej. \u201CLugar de entrega\u201D), as\xED que se est\xE1n contando TODOS los veh\xEDculos, no solo los de "+i+"."),_f&&Wr.push(`${_f} AC sin modelo ni clase para determinar el tama\xF1o (se contaron con peso 1).`);let Es=or.filter(G=>G.arrastrada).length;Es&&Wr.push(`${Es} limpieza${Es>1?"s":""} ven\xEDa${Es>1?"n":""} pendiente${Es>1?"s":""} de d\xEDas anteriores (sin tildar) y se ${Es>1?"han":"ha"} a\xF1adido a partir de hoy.`),z.data.length||Wr.push("No cargaste las salidas de ESTA semana. Sin ese archivo, un AC que sale y vuelve dentro de esta semana (y vuelve a salir) puede parecer con m\xE1s margen del real.");let Df=Object.values(Gr).sort((G,ne)=>G.date-ne.date),vp={sin_limpieza:0,limpia_hoy:1,limpiada:2,ya_lista:3,otra_sede:4},Pf=0;for(let G of Df){G.items=G.items||[],G.salen=G.salen||[];let ne=G.items.filter(ve=>!ve.hecha);G.totalPeso=ne.reduce((ve,De)=>ve+De.peso,0),G.personas=Math.ceil(G.totalPeso/a),G.pendientes=ne.length,G.hechas=G.items.filter(ve=>ve.hecha).length,G.urgentes=ne.filter(ve=>ve.category==="urgente").length,G.movidas=ne.filter(ve=>ve.movedFrom).length;let xe={urgente:0,flexible:1,sin_salida:2};G.items.sort((ve,De)=>(ve.hecha?1:0)-(De.hecha?1:0)||xe[ve.category]-xe[De.category]||(ve.margenDias??999)-(De.margenDias??999)),G.salen.sort((ve,De)=>vp[ve.estado]-vp[De.estado]||ve.id.localeCompare(De.id)),G.sinLimpieza=G.salen.filter(ve=>ve.estado==="sin_limpieza").length,Pf+=G.sinLimpieza}Pf&&Wr.push(`${Pf} AC salen sin una limpieza registrada en el plan. Rev\xEDsalas: aparecen en rojo dentro de \u201CSalen\u201D.`),V.current=!0;let Nf=Ze(fa);se(G=>{let ne={...G};for(let xe of Df){if(xe.date<cn)continue;let ve=Ze(xe.date),De=ne[ve]||{cleaned:{}};xe.date>fa?ne[ve]={...De,personal:xe.personas}:De.personalLocked||(ne[ve]={...De,personal:xe.personas,personalLocked:!0})}if(!Ii){let xe=ne[Nf];xe?xe.personalLocked||(ne[Nf]={...xe,personal:xe.personal!=null?xe.personal:0,personalLocked:!0}):ne[Nf]={personal:0,cleaned:{},personalLocked:!0}}return ne}),ae({days:Df,warnings:Wr,recommended:pl,horizonEnd:Pa,totalTareas:Ef.length,pendientes:or.length,hechas:dl.length,adelantables:Ff,cerrado:Ii,movidosPorCierre:Ii?or.filter(G=>G.arrastrada).length:0,schedulingFailed:mp}),Object.keys(If).length>0&&Fe(G=>{let ne=!1,xe={...G};for(let[ve,De]of Object.entries(If))xe[ve]!==De&&(xe[ve]=De,ne=!0);return ne?xe:G})},[z,Z,a,n,i,Sf,W,Fa,He,Hr,e,le,Y]);(0,c.useEffect)(()=>{
+let Ff=[];Ii||or.forEach((G,ne)=>{let xe=Ga[Vr[ne]];G.release<=fa&&xe>fa&&Ff.push({key:G.key,id:G.id,tamano:G.tamano,modelo:G.modelo,nextDep:G.nextDep,previstaEl:xe,margenDias:G.margenDias})}),Ff.sort((G,ne)=>(G.nextDep?G.nextDep.getTime():1/0)-(ne.nextDep?ne.nextDep.getTime():1/0)||G.id.localeCompare(ne.id));let Is=new Map,Af=(G,ne)=>{Is.has(G)||Is.set(G,[]),Is.get(G).push(ne)};or.forEach((G,ne)=>Af(G.id,Ga[Vr[ne]])),dl.forEach(G=>Af(G.id,Ga[G.r])),Object.entries(Y||{}).forEach(([G,ne])=>{if(!ne||!ne.cleaned)return;let xe=Ta(G);xe&&Object.values(ne.cleaned).forEach(ve=>{Af(ve,xe)})});for(let[G,ne]of Is.entries()){let xe=Array.from(new Set(ne.map(ve=>ve.getTime()))).map(ve=>new Date(ve));xe.sort((ve,De)=>ve-De),Is.set(G,xe)}let hl=new Map;Object.entries(Y||{}).forEach(([G,ne])=>{if(!ne||!ne.cleaned)return;let xe=Ta(G);xe&&Object.values(ne.cleaned).forEach(ve=>{if(!ve)return;let De=hl.get(ve);(!De||xe>De)&&hl.set(ve,xe)})});for(let G of ge){if(G.dep<fa||G.dep>Pa||Hr.has(G.id))continue;let ne=Ze(G.dep);Gr[ne]||(Gr[ne]={date:G.dep,items:[]}),Gr[ne].salen||(Gr[ne].salen=[]);let xe,ve=null;if(!G.enSede)xe="otra_sede";else{let De=(Is.get(G.id)||[]).filter(ka=>ka<=G.dep);if(De.length){let ka=hl.get(G.id);ka&&ka<=G.dep?ve=ka:ve=De[De.length-1],xe=Ze(ve)===ne?"limpia_hoy":"limpiada",xe==="limpia_hoy"&&hl.has(G.id)&&(xe="limpiada")}else xe="ya_lista"}Gr[ne].salen.push({id:G.id,tamano:(Sf(`${U.get(G.id)||""} ${S.get(G.id)||""}`)||{}).nombre||"\u2014",modelo:U.get(G.id)||"",estado:xe,cleanedOn:ve})}re?ke.size&&Wr.push(`${ke.size} AC de otras sedes excluidas del c\xE1lculo (solo se cuenta ${i}).`):Wr.push("No se encontr\xF3 columna de sede (p.ej. \u201CLugar de entrega\u201D), as\xED que se est\xE1n contando TODOS los veh\xEDculos, no solo los de "+i+"."),_f&&Wr.push(`${_f} AC sin modelo ni clase para determinar el tama\xF1o (se contaron con peso 1).`);let Es=or.filter(G=>G.arrastrada).length;Es&&Wr.push(`${Es} limpieza${Es>1?"s":""} ven\xEDa${Es>1?"n":""} pendiente${Es>1?"s":""} de d\xEDas anteriores (sin tildar) y se ${Es>1?"han":"ha"} a\xF1adido a partir de hoy.`),z.data.length||Wr.push("No cargaste las salidas de ESTA semana. Sin ese archivo, un AC que sale y vuelve dentro de esta semana (y vuelve a salir) puede parecer con m\xE1s margen del real.");let Df=Object.values(Gr).sort((G,ne)=>G.date-ne.date);
+
+// Refuerzo final: toda forzada pendiente debe existir en el día visible de Gestión.
+// Esto garantiza que la misma fila que llega a Supabase/Tablet también aparezca en "A limpiar".
+for(let G of He){
+  if(hp.has(G.key))continue;
+
+  let ne=Ze(G.fecha);
+  if(!ne)continue;
+
+  let xe=new Date(`${ne}T00:00:00`);
+  if(isNaN(xe)||xe>Pa)continue;
+  if(xe<cn)xe=cn;
+
+  let ve=Ze(xe);
+  let De=Df.find(ka=>Ze(ka.date)===ve);
+  if(!De){
+    De=Df.find(ka=>Ze(ka.date)>=ve);
+  }
+  if(!De)continue;
+
+  De.items=De.items||[];
+  if(!De.items.some(ka=>ka.key===G.key)){
+    let ka=e.find(qa=>qa.nombre===G.tamano);
+    De.items.push({
+      key:G.key,
+      id:G.id,
+      modelo:"(añadida a mano)",
+      tamano:G.tamano,
+      peso:ka?ka.peso:1,
+      category:"urgente",
+      margenDias:0,
+      nextDep:xe,
+      arrastrada:!1,
+      forzada:!0,
+      movedFrom:null,
+      hecha:!1
+    });
+  }
+}
+
+let vp={sin_limpieza:0,limpia_hoy:1,limpiada:2,ya_lista:3,otra_sede:4},Pf=0;for(let G of Df){G.items=G.items||[],G.salen=G.salen||[];let ne=G.items.filter(ve=>!ve.hecha);G.totalPeso=ne.reduce((ve,De)=>ve+De.peso,0),G.personas=Math.ceil(G.totalPeso/a),G.pendientes=ne.length,G.hechas=G.items.filter(ve=>ve.hecha).length,G.urgentes=ne.filter(ve=>ve.category==="urgente").length,G.movidas=ne.filter(ve=>ve.movedFrom).length;let xe={urgente:0,flexible:1,sin_salida:2};G.items.sort((ve,De)=>(ve.hecha?1:0)-(De.hecha?1:0)||xe[ve.category]-xe[De.category]||(ve.margenDias??999)-(De.margenDias??999)),G.salen.sort((ve,De)=>vp[ve.estado]-vp[De.estado]||ve.id.localeCompare(De.id)),G.sinLimpieza=G.salen.filter(ve=>ve.estado==="sin_limpieza").length,Pf+=G.sinLimpieza}Pf&&Wr.push(`${Pf} AC salen sin una limpieza registrada en el plan. Rev\xEDsalas: aparecen en rojo dentro de \u201CSalen\u201D.`),V.current=!0;let Nf=Ze(fa);se(G=>{let ne={...G};for(let xe of Df){if(xe.date<cn)continue;let ve=Ze(xe.date),De=ne[ve]||{cleaned:{}};xe.date>fa?ne[ve]={...De,personal:xe.personas}:De.personalLocked||(ne[ve]={...De,personal:xe.personas,personalLocked:!0})}if(!Ii){let xe=ne[Nf];xe?xe.personalLocked||(ne[Nf]={...xe,personal:xe.personal!=null?xe.personal:0,personalLocked:!0}):ne[Nf]={personal:0,cleaned:{},personalLocked:!0}}return ne}),ae({days:Df,warnings:Wr,recommended:pl,horizonEnd:Pa,totalTareas:Ef.length,pendientes:or.length,hechas:dl.length,adelantables:Ff,cerrado:Ii,movidosPorCierre:Ii?or.filter(G=>G.arrastrada).length:0,schedulingFailed:mp}),Object.keys(If).length>0&&Fe(G=>{let ne=!1,xe={...G};for(let[ve,De]of Object.entries(If))xe[ve]!==De&&(xe[ve]=De,ne=!0);return ne?xe:G})},[z,Z,a,n,i,Sf,W,Fa,He,Hr,e,le,Y]);(0,c.useEffect)(()=>{
   let syncTodayPlan=async()=>{
     try{
       let sb=window.__ACLLAR_SUPABASE;
