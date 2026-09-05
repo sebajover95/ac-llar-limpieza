@@ -391,14 +391,102 @@ let vp={sin_limpieza:0,limpia_hoy:1,limpiada:2,ya_lista:3,otra_sede:4},Pf=0;for(
       for(let S of wanted){
         let existing=byAc.get(S.ac_id);
         if(existing){
-          if(existing.estado!==(S.hecha?"terminada":"pendiente")||existing.tamano!==S.tamano){
-            let up=await sb.from("limpieza_plan").update({tamano:S.tamano,estado:S.hecha?"terminada":"pendiente"}).eq("id",existing.id);
+          // Supabase es la fuente de verdad para el estado recogido por la Tablet.
+          // Nunca rebajamos una limpieza ya terminada/en curso a pendiente.
+          let desiredState=
+            existing.estado==="terminada" ? "terminada" :
+            existing.estado==="en_curso" ? "en_curso" :
+            (S.hecha?"terminada":"pendiente");
+
+          if(existing.estado!==desiredState||existing.tamano!==S.tamano){
+            let up=await sb.from("limpieza_plan").update({
+              tamano:S.tamano,
+              estado:desiredState
+            }).eq("id",existing.id);
             if(up.error)throw new Error("No se pudo actualizar el AC "+S.ac_id+": "+up.error.message);
           }
         }else{
-          let ins=await sb.from("limpieza_plan").insert({fecha:targetDate,ac_id:S.ac_id,tamano:S.tamano,estado:S.hecha?"terminada":"pendiente"});
+          let ins=await sb.from("limpieza_plan").insert({
+            fecha:targetDate,
+            ac_id:S.ac_id,
+            tamano:S.tamano,
+            estado:S.hecha?"terminada":"pendiente"
+          });
           if(ins.error)throw new Error("No se pudo insertar el AC "+S.ac_id+": "+ins.error.message);
         }
+      }
+
+      // Lo que la Tablet marque como terminada debe reflejarse también en
+      // la lista visual de Gestión (W) y en su historial/facturación (Y).
+      let doneRows=current.filter(S=>S.estado==="terminada");
+      let doneKeys=[];
+
+      for(let S of doneRows){
+        let normal=(day.items||[]).find(O=>String(O.id)===String(S.ac_id));
+        if(normal?.key){
+          doneKeys.push({
+            key:normal.key,
+            ac_id:String(S.ac_id),
+            tamano:S.tamano||normal.tamano||"Grande"
+          });
+          continue;
+        }
+
+        let forced=(He||[]).find(O=>
+          String(O.fecha).slice(0,10)===String(targetDate) &&
+          String(O.id)===String(S.ac_id)
+        );
+
+        if(forced?.key){
+          doneKeys.push({
+            key:forced.key,
+            ac_id:String(S.ac_id),
+            tamano:S.tamano||forced.tamano||"Grande"
+          });
+        }
+      }
+
+      if(doneKeys.length){
+        H(prev=>{
+          let next=prev;
+          let changed=false;
+
+          for(let S of doneKeys){
+            if(next.get(S.key)!==targetDate){
+              if(!changed)next=new Map(prev);
+              next.set(S.key,targetDate);
+              changed=true;
+            }
+          }
+
+          return changed?next:prev;
+        });
+
+        se(prev=>{
+          let next=prev;
+          let changed=false;
+
+          for(let S of doneKeys){
+            let dia=next[targetDate];
+            let cleaned={...(dia?.cleaned||{})};
+            let tamanoPorAc={...(dia?.tamanoPorAc||{})};
+
+            if(cleaned[S.key]!==S.ac_id || tamanoPorAc[S.ac_id]!==S.tamano){
+              if(!changed)next={...prev};
+              if(!changed)dia={...dia};
+              cleaned[S.key]=S.ac_id;
+              tamanoPorAc[S.ac_id]=S.tamano;
+              next[targetDate]={
+                ...(next[targetDate]||{}),
+                cleaned,
+                tamanoPorAc
+              };
+              changed=true;
+            }
+          }
+
+          return changed?next:prev;
+        });
       }
 
       for(let S of current){
