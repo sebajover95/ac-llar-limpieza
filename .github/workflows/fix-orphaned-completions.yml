@@ -1,0 +1,49 @@
+name: Fix orphaned plan completions
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: "!contains(github.event.head_commit.message, '[orphaned-plan-fix]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch Gestión
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile
+
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old='''      // Lo que la Tablet marque como terminada debe reflejarse también en\n      // la lista visual de Gestión (W) y en su historial/facturación (Y).\n      let doneRows=current.filter(S=>S.estado==="terminada");\n      let doneKeys=[];'''
+          new='''      // Solo una limpieza realmente registrada por la Tablet puede pasar a facturación/historial.\n      // Una fila terminada de limpieza_plan sin su fila correspondiente en limpiezas\n      // es un estado huérfano y NO debe generar una facturación.\n      let completedRes=await sb.from("limpiezas")\n        .select("ac_id,inicio")\n        .eq("estado","terminada");\n      if(completedRes.error)throw new Error("No se pudo comprobar las limpiezas terminadas: "+completedRes.error.message);\n      let completedIds=new Set((completedRes.data||[])\n        .filter(S=>S.inicio&&Ze(new Date(S.inicio))===targetDate)\n        .map(S=>String(S.ac_id)));\n\n      // Lo que la Tablet marque como terminada debe reflejarse también en\n      // la lista visual de Gestión (W) y en su historial/facturación (Y).\n      // Nunca usamos limpieza_plan.terminada como prueba suficiente.\n      let doneRows=current.filter(S=>S.estado==="terminada"&&completedIds.has(String(S.ac_id)));\n      let doneKeys=[];'''
+          if old not in s:
+              raise SystemExit('No se encontró el bloque de completadas huérfanas')
+          s=s.replace(old,new,1)
+
+          # Validate every inline script before committing.
+          scripts=re.findall(r'<script(?:[^>]*)>([\\s\\S]*?)</script>',s,re.I)
+          for idx,code in enumerate(scripts):
+              if not code.strip():
+                  continue
+              with tempfile.NamedTemporaryFile('w',suffix='.js',delete=False,encoding='utf-8') as f:
+                  f.write(code); fn=f.name
+              r=subprocess.run(['node','--check',fn],capture_output=True,text=True)
+              Path(fn).unlink(missing_ok=True)
+              if r.returncode:
+                  print(r.stderr)
+                  raise SystemExit(f'JavaScript inválido en index.html script {idx}')
+          p.write_text(s,encoding='utf-8')
+          print('VALIDACION OK')
+          PY
+      - name: Commit and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git rm .github/workflows/fix-orphaned-completions.yml
+          git commit -m 'Fix orphaned plan completions [orphaned-plan-fix]'
+          git push
