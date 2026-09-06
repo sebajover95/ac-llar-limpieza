@@ -569,9 +569,21 @@ let vp={sin_limpieza:0,limpia_hoy:1,limpiada:2,ya_lista:3,otra_sede:4},Pf=0;for(
         }
       }
 
+      // Solo una limpieza realmente registrada por la Tablet puede pasar a facturación/historial.
+      // Una fila terminada de limpieza_plan sin su fila correspondiente en limpiezas
+      // es un estado huérfano y NO debe generar una facturación.
+      let completedRes=await sb.from("limpiezas")
+        .select("ac_id,inicio")
+        .eq("estado","terminada");
+      if(completedRes.error)throw new Error("No se pudo comprobar las limpiezas terminadas: "+completedRes.error.message);
+      let completedIds=new Set((completedRes.data||[])
+        .filter(S=>S.inicio&&Ze(new Date(S.inicio))===targetDate)
+        .map(S=>String(S.ac_id)));
+
       // Lo que la Tablet marque como terminada debe reflejarse también en
       // la lista visual de Gestión (W) y en su historial/facturación (Y).
-      let doneRows=current.filter(S=>S.estado==="terminada");
+      // Nunca usamos limpieza_plan.terminada como prueba suficiente.
+      let doneRows=current.filter(S=>S.estado==="terminada"&&completedIds.has(String(S.ac_id)));
       let doneKeys=[];
 
       for(let S of doneRows){
