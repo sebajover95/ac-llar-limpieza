@@ -27,22 +27,17 @@ jobs:
           s=s[:old.start()]+new+s[old.end()-len('var v3='):]
           p.write_text(s,encoding='utf-8')
 
-          # GESTION: a plan row is completed when a real Tablet cleaning exists.
+          # GESTION: real Tablet completions must mark the plan item as done.
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
-          marker='// SYNC-COMPLETED-FROM-CLOUD'
+          marker='// SYNC-COMPLETED-FROM-CLOUD-V2'
           if marker not in s:
-              needle='      for(let S of wanted){\n'
+              needle='      let wantedMap=new Map();\n'
               if needle not in s:
-                  raise SystemExit('No se encontró el bucle de sincronización de wanted en index.html')
-              block='''      // SYNC-COMPLETED-FROM-CLOUD\n      let cloudCompletedRes=await sb.from("limpiezas").select("ac_id,inicio").eq("estado","terminada");\n      if(cloudCompletedRes.error)throw new Error("No se pudo comprobar las limpiezas terminadas: "+cloudCompletedRes.error.message);\n      let cloudCompletedIds=new Set((cloudCompletedRes.data||[]).filter(S=>S.inicio&&Ze(new Date(S.inicio))===targetDate).map(S=>String(S.ac_id)));\n\n'''
+                  raise SystemExit('No se encontró wantedMap en index.html')
+              block='''      // SYNC-COMPLETED-FROM-CLOUD-V2\n      let cloudCompletedRes=await sb.from("limpiezas").select("ac_id,inicio").eq("estado","terminada");\n      if(cloudCompletedRes.error)throw new Error("No se pudo comprobar las limpiezas terminadas: "+cloudCompletedRes.error.message);\n      let cloudCompletedIds=new Set((cloudCompletedRes.data||[]).filter(S=>S.inicio&&Ze(new Date(S.inicio))===targetDate).map(S=>String(S.ac_id)));\n\n'''
               s=s.replace(needle,block+needle,1)
-              marker=marker
-          old_state=re.search(r'let desiredState=\s*S\.hecha \? "terminada" :\s*existing\.estado==="en_curso" \? "en_curso" :\s*"pendiente";',s)
-          if not old_state:
-              raise SystemExit('No se encontró desiredState en index.html')
-          replacement='''let desiredState=\n            S.hecha || cloudCompletedIds.has(String(S.ac_id)) ? "terminada" :\n            existing.estado==="en_curso" ? "en_curso" :\n            "pendiente";'''
-          s=s[:old_state.start()]+replacement+s[old_state.end():]
+              s=s.replace('hecha:!!S.hecha\n        });','hecha:!!S.hecha || cloudCompletedIds.has(String(S.id))\n        });',1)
           p.write_text(s,encoding='utf-8')
           PY
       - name: Validate and publish
