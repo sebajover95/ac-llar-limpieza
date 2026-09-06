@@ -1,0 +1,82 @@
+name: Fix tablet sync
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: "!contains(github.event.head_commit.message, '[tablet-sync-fix]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply exact fixes and validate JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root=Path('index.html')
+          tab=Path('tablet/index.html')
+          s=root.read_text(encoding='utf-8')
+          t=tab.read_text(encoding='utf-8')
+          changed=False
+
+          # 1) Remove stale duplicate history keys for the same AC/date when cloud sync writes the canonical key.
+          needle='''let cleaned={...(dia.cleaned||{})};\n          let tamanoPorAc={...(dia.tamanoPorAc||{})};'''
+          repl='''let cleaned={...(dia.cleaned||{})};\n          let tamanoPorAc={...(dia.tamanoPorAc||{})};'''
+          if needle not in s:
+              raise SystemExit('No se encontró el bloque de historial para corregir duplicados')
+
+          # Insert the cleanup immediately before the canonical assignment.
+          needle2='''if(cleaned[taskKey]!==String(row.ac_id)){cleaned[taskKey]=String(row.ac_id);changedDia=true}'''
+          repl2='''for(let oldKey of Object.keys(cleaned)){\n            if(oldKey!==taskKey && String(cleaned[oldKey])===String(row.ac_id)){\n              delete cleaned[oldKey];\n              changedDia=true;\n            }\n          }\n          if(cleaned[taskKey]!==String(row.ac_id)){cleaned[taskKey]=String(row.ac_id);changedDia=true}'''
+          if needle2 in s and 'oldKey of Object.keys(cleaned)' not in s:
+              s=s.replace(needle2,repl2,1)
+              changed=True
+
+          # 2) Correct milliseconds -> minutes conversion. Previous formula was 10x too large.
+          old='Math.round((fin-inicio)/600)/10'
+          new='Math.round(((fin-inicio)/60000)*10)/10'
+          if old not in s:
+              raise SystemExit('No se encontró la fórmula de duración')
+          s=s.replace(old,new,1)
+          changed=True
+
+          # 3) When a deleted completed cleaning was forced, reset its shared plan row to pending.
+          needle3='''      if((verify.data||[]).length){\n        throw new Error("Supabase no confirmó el borrado de la limpieza.");\n      }\n    }\n  }catch(err){'''
+          repl3='''      if((verify.data||[]).length){\n        throw new Error("Supabase no confirmó el borrado de la limpieza.");\n      }\n\n      let forcedForThisCleaning=(He||[]).find(F=>\n        String(F.id)===String(O) &&\n        String(F.fecha).slice(0,10)===fecha\n      );\n      if(forcedForThisCleaning){\n        let resetPlan=await sb.from("limpieza_plan")\n          .update({estado:"pendiente"})\n          .eq("fecha",fecha)\n          .eq("ac_id",String(O));\n        if(resetPlan.error)throw resetPlan.error;\n      }\n    }\n  }catch(err){'''
+          if needle3 not in s:
+              raise SystemExit('No se encontró el bloque de borrado de limpieza')
+          s=s.replace(needle3,repl3,1)
+          changed=True
+
+          # Tablet already polls/realtime-syncs limpieza_plan; no client-side change is needed once the shared row is reset.
+          root.write_text(s,encoding='utf-8')
+          tab.write_text(t,encoding='utf-8')
+
+          # Syntax-check every inline script in both HTML files before committing.
+          import subprocess,tempfile
+          for path in [root,tab]:
+              html=path.read_text(encoding='utf-8')
+              scripts=re.findall(r'<script(?:[^>]*)>([\\s\\S]*?)</script>',html,re.I)
+              for idx,code in enumerate(scripts):
+                  if not code.strip():
+                      continue
+                  with tempfile.NamedTemporaryFile('w',suffix='.js',delete=False,encoding='utf-8') as f:
+                      f.write(code); fn=f.name
+                  r=subprocess.run(['node','--check',fn],capture_output=True,text=True)
+                  Path(fn).unlink(missing_ok=True)
+                  if r.returncode:
+                      print(r.stderr)
+                      raise SystemExit(f'JavaScript inválido en {path} script {idx}')
+          print('VALIDACIÓN OK')
+          PY
+      - name: Commit changes and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html tablet/index.html
+          git rm .github/workflows/fix-tablet-sync.yml
+          git commit -m 'Fix tablet sync and cleaning time [tablet-sync-fix]'
+          git push
