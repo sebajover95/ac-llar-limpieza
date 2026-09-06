@@ -22,7 +22,7 @@ jobs:
           if not old:
               raise SystemExit('No se encontró p3 en tablet/index.html')
           new=r'''async function p3(){let today=_v(h3());let {data,error}=await supabaseClient.from("limpieza_plan").select("id,fecha,ac_id,tamano,estado").gte("fecha",today).order("fecha",{ascending:!0}).order("ac_id",{ascending:!0}).limit(500);if(error)throw new Error("No se pudo leer el plan de limpieza: "+error.message);let all=data||[];let pending=all.filter(u=>u.estado!=="terminada");let fecha=today;let rows=pending.filter(u=>u.fecha===today);if(!rows.length){let dates=[...new Set(pending.map(u=>u.fecha))].sort();if(dates.length){fecha=dates[0];rows=pending.filter(u=>u.fecha===fecha)}}return{fecha,items:rows.map(u=>({id:u.ac_id,tamano:u.tamano||"Grande",planId:u.id,planEstado:u.estado}))}}var v3='''
-          s=s[:old.start()]+new+s[old.end()-len('var v3='):]
+          s=s[:old.start()]+new+s[old.end():]
           p.write_text(s,encoding='utf-8')
 
           p=Path('index.html')
