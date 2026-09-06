@@ -1,0 +1,66 @@
+name: Apply reversible cycle fix
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: "!contains(github.event.head_commit.message, '[reversible-fix]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch Management and Tablet
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # MANAGEMENT: if a completed cleaning no longer exists in limpiezas,
+          # today's/future plan row must be pending. This makes cancellation reversible.
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          marker='REVERSIBLE-CLOUD-CANCEL-GUARD'
+          if marker not in s:
+              guard=r'''<script id="REVERSIBLE-CLOUD-CANCEL-GUARD">
+          (async()=>{
+            try{
+              const sb=window.__ACLLAR_SUPABASE;
+              if(!sb)return;
+              const now=new Date();
+              const day=d=>{let x=new Date(d);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`};
+              const today=day(now);
+              const {data:plans,error:pe}=await sb.from("limpieza_plan").select("id,fecha,ac_id,estado").gte("fecha",today).eq("estado","terminada");
+              if(pe||!plans?.length)return;
+              for(const plan of plans){
+                const {data:rows,error:le}=await sb.from("limpiezas").select("id").eq("ac_id",String(plan.ac_id)).eq("estado","terminada");
+                if(le)continue;
+                const exists=(rows||[]).some(r=>r);
+                if(!exists){
+                  await sb.from("limpieza_plan").update({estado:"pendiente"}).eq("id",plan.id);
+                }
+              }
+            }catch(e){console.warn("reversible guard",e)}
+          })();
+          </script>'''
+              if '</body>' not in s: raise SystemExit('No se encontró </body> en Gestión')
+              s=s.replace('</body>',guard+'\n</body>',1)
+              p.write_text(s,encoding='utf-8')
+
+          # TABLET: select the first day that actually has pending/in-progress rows.
+          p=Path('tablet/index.html')
+          s=p.read_text(encoding='utf-8')
+          old='''async function p3(){let today=_v(h3());let {data,error}=await supabaseClient.from("limpieza_plan").select("id,fecha,ac_id,tamano,estado").eq("fecha",today).order("ac_id",{ascending:!0});if(error)throw new Error("No se pudo leer el plan de limpieza: "+error.message);let fecha=today;let rows=data||[];if(!rows.length){let next=await supabaseClient.from("limpieza_plan").select("id,fecha,ac_id,tamano,estado").gt("fecha",today).order("fecha",{ascending:!0}).order("ac_id",{ascending:!0}).limit(200);if(next.error)throw new Error("No se pudo leer el próximo plan de limpieza: "+next.error.message);rows=next.data||[];if(rows.length)fecha=rows[0].fecha}return{fecha,items:rows.filter(u=>u.estado!=="terminada").map(u=>({id:u.ac_id,tamano:u.tamano||"Grande",planId:u.id,planEstado:u.estado}))}}'''
+          new='''async function p3(){let today=_v(h3());let {data,error}=await supabaseClient.from("limpieza_plan").select("id,fecha,ac_id,tamano,estado").eq("fecha",today).order("ac_id",{ascending:!0});if(error)throw new Error("No se pudo leer el plan de limpieza: "+error.message);let fecha=today;let rows=(data||[]).filter(u=>u.estado!=="terminada");if(!rows.length){let next=await supabaseClient.from("limpieza_plan").select("id,fecha,ac_id,tamano,estado").gt("fecha",today).order("fecha",{ascending:!0}).order("ac_id",{ascending:!0}).limit(200);if(next.error)throw new Error("No se pudo leer el próximo plan de limpieza: "+next.error.message);rows=(next.data||[]).filter(u=>u.estado!=="terminada");if(rows.length)fecha=rows[0].fecha}return{fecha,items:rows.map(u=>({id:u.ac_id,tamano:u.tamano||"Grande",planId:u.id,planEstado:u.estado}))}}'''
+          if old not in s:
+              raise SystemExit('No se encontró p3 exacta en Tablet')
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Publish and remove temporary workflows
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html tablet/index.html
+          git rm .github/workflows/fix-reversible.yml .github/workflows/fix-reversible2.yml
+          git commit -m 'Fix reversible cleaning cycle [reversible-fix]'
+          git push
