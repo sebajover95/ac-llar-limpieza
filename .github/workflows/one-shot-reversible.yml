@@ -1,0 +1,59 @@
+name: One-shot reversible cleaning repair
+on:
+  push:
+    branches:
+      - main
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          marker='REVERSIBLE-CLEANING-FIX'
+          if marker in s:
+              raise SystemExit(0)
+          old='''      let forcedForThisCleaning=(He||[]).find(F=>
+        String(F.id)===String(O) &&
+        String(F.fecha).slice(0,10)===fecha
+      );
+      if(forcedForThisCleaning){
+        let resetPlan=await sb.from("limpieza_plan")
+          .update({estado:"pendiente"})
+          .eq("fecha",fecha)
+          .eq("ac_id",String(O));
+        if(resetPlan.error)throw resetPlan.error;
+      }'''
+          new='''      // REVERSIBLE-CLEANING-FIX
+      let resetPlan=await sb.from("limpieza_plan")
+        .update({estado:"pendiente"})
+        .eq("fecha",fecha)
+        .eq("ac_id",String(O));
+      if(resetPlan.error)throw resetPlan.error;'''
+          if old not in s:
+              raise SystemExit('Exact J block not found; nothing changed')
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+          scripts=re.findall(r'<script(?:\\s[^>]*)?>([\\s\\S]*?)</script>',s,re.I)
+          with tempfile.NamedTemporaryFile('w',suffix='.js',delete=False,encoding='utf-8') as f:
+              f.write('\\n'.join(scripts)); name=f.name
+          r=subprocess.run(['node','--check',name],capture_output=True,text=True)
+          if r.returncode:
+              print(r.stderr)
+              raise SystemExit('JavaScript validation failed')
+          PY
+      - name: Commit and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git rm .github/workflows/one-shot-reversible.yml .github/workflows/fix-reversible-cleaning.yml
+          git commit -m 'Fix reversible cleaning state [reversible-fix]'
+          git push
