@@ -350,23 +350,39 @@ re.push({dk:fe,id:Ge,tamano:It,taskKey:ge,empresa:O[Qe]||tiempo?.empresa||"",per
   let cloudRows=[];
   try{
     let sb=window.__ACLLAR_SUPABASE;
-    if(sb&&O){
-      let fecha=String(S).slice(0,10);
-      let ini=`${fecha}T00:00:00.000Z`;
-      let nextDate=new Date(`${fecha}T00:00:00.000Z`);
-      nextDate.setUTCDate(nextDate.getUTCDate()+1);
-      let fin=nextDate.toISOString();
-      let res=await sb.from("limpiezas").select("id,ac_id,inicio,estado").eq("ac_id",String(O)).eq("estado","terminada").gte("inicio",ini).lt("inicio",fin);
-      if(res.error)throw res.error;
-      cloudRows=res.data||[];
-      if(cloudRows.length){
-        let ids=cloudRows.map(Q=>Q.id);
-        let del=await sb.from("limpiezas").delete().in("id",ids);
-        if(del.error)throw del.error;
+    if(!sb||!O)throw new Error("No hay conexión con Supabase para eliminar esta limpieza.");
+    let fecha=String(S).slice(0,10);
+
+    let res=await sb.from("limpiezas")
+      .select("id,ac_id,inicio,estado")
+      .eq("ac_id",String(O))
+      .eq("estado","terminada");
+
+    if(res.error)throw res.error;
+
+    cloudRows=(res.data||[]).filter(Q=>{
+      let d=Q.inicio?Ze(new Date(Q.inicio)):"";
+      return d===fecha;
+    });
+
+    if(cloudRows.length){
+      let ids=cloudRows.map(Q=>Q.id);
+      let del=await sb.from("limpiezas").delete().in("id",ids);
+      if(del.error)throw del.error;
+
+      let verify=await sb.from("limpiezas")
+        .select("id")
+        .in("id",ids);
+
+      if(verify.error)throw verify.error;
+      if((verify.data||[]).length){
+        throw new Error("Supabase no confirmó el borrado de la limpieza.");
       }
     }
   }catch(err){
     console.warn("No se pudo eliminar la limpieza de Supabase:",err?.message||err);
+    alert("No se pudo eliminar la limpieza de la nube. No se quitará de la facturación hasta que se pueda borrar correctamente.");
+    return;
   }
 
   se(Q=>{
