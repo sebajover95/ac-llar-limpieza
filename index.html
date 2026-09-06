@@ -519,13 +519,18 @@ let vp={sin_limpieza:0,limpia_hoy:1,limpiada:2,ya_lista:3,otra_sede:4},Pf=0;for(
 
       let current=currentRes.data||[];
       let byAc=new Map(current.map(S=>[String(S.ac_id),S]));
+      // SYNC-COMPLETED-FROM-CLOUD-V2
+      let cloudCompletedRes=await sb.from("limpiezas").select("ac_id,inicio").eq("estado","terminada");
+      if(cloudCompletedRes.error)throw new Error("No se pudo comprobar las limpiezas terminadas: "+cloudCompletedRes.error.message);
+      let cloudCompletedIds=new Set((cloudCompletedRes.data||[]).filter(S=>S.inicio&&Ze(new Date(S.inicio))===targetDate).map(S=>String(S.ac_id)));
+
       let wantedMap=new Map();
 
       for(let S of day.items||[]){
         wantedMap.set(String(S.id),{
           ac_id:String(S.id),
           tamano:S.tamano||"Grande",
-          hecha:!!S.hecha
+          hecha:!!S.hecha || cloudCompletedIds.has(String(S.id))
         });
       }
 
