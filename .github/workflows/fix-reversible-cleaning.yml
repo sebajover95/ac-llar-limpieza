@@ -1,0 +1,68 @@
+name: Fix reversible cleaning state
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: "!contains(github.event.head_commit.message, '[reversible-fix]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply exact patch and validate
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old='''      let forcedForThisCleaning=(He||[]).find(F=>
+        String(F.id)===String(O) &&
+        String(F.fecha).slice(0,10)===fecha
+      );
+      if(forcedForThisCleaning){
+        let resetPlan=await sb.from("limpieza_plan")
+          .update({estado:"pendiente"})
+          .eq("fecha",fecha)
+          .eq("ac_id",String(O));
+        if(resetPlan.error)throw resetPlan.error;
+      }'''
+          new='''      // REVERSIBLE-CLEANING-FIX
+      // Cancelar una limpieza terminada debe devolver SIEMPRE el plan a pendiente.
+      // No se limita a las limpiezas forzadas: la Tablet lee este estado desde Supabase.
+      let resetPlan=await sb.from("limpieza_plan")
+        .update({estado:"pendiente"})
+        .eq("fecha",fecha)
+        .eq("ac_id",String(O));
+      if(resetPlan.error)throw resetPlan.error;'''
+          if old not in s:
+              raise SystemExit('PATCH_ABORTED: no se encontró exactamente el bloque de J')
+          if 'REVERSIBLE-CLEANING-FIX' in s:
+              raise SystemExit('PATCH_ALREADY_PRESENT')
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile
+          s=Path('index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',s,re.I)
+          if not scripts:
+              raise SystemExit('VALIDATION_FAILED: no scripts found')
+          with tempfile.NamedTemporaryFile('w',suffix='.js',delete=False,encoding='utf-8') as f:
+              f.write('\n'.join(scripts)); name=f.name
+          r=subprocess.run(['node','--check',name],capture_output=True,text=True)
+          if r.returncode:
+              print(r.stderr)
+              raise SystemExit('VALIDATION_FAILED: JavaScript syntax error')
+          print('VALIDATION_OK')
+          PY
+      - name: Commit patch and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git rm .github/workflows/fix-reversible-cleaning.yml
+          git commit -m 'Fix reversible cleaning state [reversible-fix]'
+          git push
