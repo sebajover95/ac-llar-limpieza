@@ -16,8 +16,6 @@ jobs:
           from pathlib import Path
           import re
 
-          # TABLET: if today's rows exist but all are already terminated,
-          # load the next date that actually has pending work.
           p=Path('tablet/index.html')
           s=p.read_text(encoding='utf-8')
           old=re.search(r'async function p3\(\)\{.*?\}var v3=',s,re.S)
@@ -27,7 +25,6 @@ jobs:
           s=s[:old.start()]+new+s[old.end()-len('var v3='):]
           p.write_text(s,encoding='utf-8')
 
-          # GESTION: real Tablet completions must mark the plan item as done.
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
           marker='// SYNC-COMPLETED-FROM-CLOUD-V2'
@@ -37,13 +34,30 @@ jobs:
                   raise SystemExit('No se encontró wantedMap en index.html')
               block='''      // SYNC-COMPLETED-FROM-CLOUD-V2\n      let cloudCompletedRes=await sb.from("limpiezas").select("ac_id,inicio").eq("estado","terminada");\n      if(cloudCompletedRes.error)throw new Error("No se pudo comprobar las limpiezas terminadas: "+cloudCompletedRes.error.message);\n      let cloudCompletedIds=new Set((cloudCompletedRes.data||[]).filter(S=>S.inicio&&Ze(new Date(S.inicio))===targetDate).map(S=>String(S.ac_id)));\n\n'''
               s=s.replace(needle,block+needle,1)
-              s=s.replace('hecha:!!S.hecha\n        });','hecha:!!S.hecha || cloudCompletedIds.has(String(S.id))\n        });',1)
+              if 'hecha:!!S.hecha || cloudCompletedIds.has(String(S.id))' not in s:
+                  s=s.replace('hecha:!!S.hecha\n        });','hecha:!!S.hecha || cloudCompletedIds.has(String(S.id))\n        });',1)
           p.write_text(s,encoding='utf-8')
           PY
       - name: Validate and publish
         run: |
-          node --check tablet/index.html
-          node --check index.html
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess, tempfile
+          for name in ['index.html','tablet/index.html']:
+              s=Path(name).read_text(encoding='utf-8')
+              scripts=re.findall(r'<script(?:[^>]*)>([\s\S]*?)</script>',s,re.I)
+              for idx,code in enumerate(scripts):
+                  if not code.strip():
+                      continue
+                  with tempfile.NamedTemporaryFile('w',suffix='.js',delete=False,encoding='utf-8') as f:
+                      f.write(code); fn=f.name
+                  r=subprocess.run(['node','--check',fn],capture_output=True,text=True)
+                  Path(fn).unlink(missing_ok=True)
+                  if r.returncode:
+                      print(r.stderr)
+                      raise SystemExit(f'JavaScript inválido en {name} script {idx}')
+          print('VALIDACION OK')
+          PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html tablet/index.html
