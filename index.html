@@ -260,12 +260,18 @@ vf=async S=>{
           let tiemposPorAc={...(dia.tiemposPorAc||{})};
           let changedDia=false;
 
+          for(let oldKey of Object.keys(cleaned)){
+            if(oldKey!==taskKey && String(cleaned[oldKey])===String(row.ac_id)){
+              delete cleaned[oldKey];
+              changedDia=true;
+            }
+          }
           if(cleaned[taskKey]!==String(row.ac_id)){cleaned[taskKey]=String(row.ac_id);changedDia=true}
           if(tamanoPorAc[row.ac_id]!==row.tamano){tamanoPorAc[row.ac_id]=row.tamano||"Grande";changedDia=true}
 
           let inicio=row.inicio?new Date(row.inicio).getTime():null;
           let fin=row.fin?new Date(row.fin).getTime():null;
-          let duracionMin=inicio&&fin?Math.round((fin-inicio)/600)/10:null;
+          let duracionMin=inicio&&fin?Math.round(((fin-inicio)/60000)*10)/10:null;
           let old=tiemposPorAc[row.ac_id];
           let nuevo={inicio:row.inicio||null,fin:row.fin||null,duracionMin,empresa:row.empresa||null,nombre:row.nombre||null,usuario_id:row.usuario_id||null};
           if(JSON.stringify(old)!==JSON.stringify(nuevo)){tiemposPorAc[row.ac_id]=nuevo;changedDia=true}
@@ -377,6 +383,18 @@ re.push({dk:fe,id:Ge,tamano:It,taskKey:ge,empresa:O[Qe]||tiempo?.empresa||"",per
       if(verify.error)throw verify.error;
       if((verify.data||[]).length){
         throw new Error("Supabase no confirmó el borrado de la limpieza.");
+      }
+
+      let forcedForThisCleaning=(He||[]).find(F=>
+        String(F.id)===String(O) &&
+        String(F.fecha).slice(0,10)===fecha
+      );
+      if(forcedForThisCleaning){
+        let resetPlan=await sb.from("limpieza_plan")
+          .update({estado:"pendiente"})
+          .eq("fecha",fecha)
+          .eq("ac_id",String(O));
+        if(resetPlan.error)throw resetPlan.error;
       }
     }
   }catch(err){
