@@ -1,0 +1,57 @@
+name: Fix Tablet and Gestion sync
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: "!contains(github.event.head_commit.message, '[sync-fix]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          # TABLET: if today's rows exist but all are already terminated,
+          # load the next date that actually has pending work.
+          p=Path('tablet/index.html')
+          s=p.read_text(encoding='utf-8')
+          old=re.search(r'async function p3\(\)\{.*?\}var v3=',s,re.S)
+          if not old:
+              raise SystemExit('No se encontró p3 en tablet/index.html')
+          new=r'''async function p3(){let today=_v(h3());let {data,error}=await supabaseClient.from("limpieza_plan").select("id,fecha,ac_id,tamano,estado").gte("fecha",today).order("fecha",{ascending:!0}).order("ac_id",{ascending:!0}).limit(500);if(error)throw new Error("No se pudo leer el plan de limpieza: "+error.message);let all=data||[];let pending=all.filter(u=>u.estado!=="terminada");let fecha=today;let rows=pending.filter(u=>u.fecha===today);if(!rows.length){let dates=[...new Set(pending.map(u=>u.fecha))].sort();if(dates.length){fecha=dates[0];rows=pending.filter(u=>u.fecha===fecha)}}return{fecha,items:rows.map(u=>({id:u.ac_id,tamano:u.tamano||"Grande",planId:u.id,planEstado:u.estado}))}}var v3='''
+          s=s[:old.start()]+new+s[old.end()-len('var v3='):]
+          p.write_text(s,encoding='utf-8')
+
+          # GESTION: a plan row is completed when a real Tablet cleaning exists.
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          marker='// SYNC-COMPLETED-FROM-CLOUD'
+          if marker not in s:
+              needle='      for(let S of wanted){\n'
+              if needle not in s:
+                  raise SystemExit('No se encontró el bucle de sincronización de wanted en index.html')
+              block='''      // SYNC-COMPLETED-FROM-CLOUD\n      let cloudCompletedRes=await sb.from("limpiezas").select("ac_id,inicio").eq("estado","terminada");\n      if(cloudCompletedRes.error)throw new Error("No se pudo comprobar las limpiezas terminadas: "+cloudCompletedRes.error.message);\n      let cloudCompletedIds=new Set((cloudCompletedRes.data||[]).filter(S=>S.inicio&&Ze(new Date(S.inicio))===targetDate).map(S=>String(S.ac_id)));\n\n'''
+              s=s.replace(needle,block+needle,1)
+              marker=marker
+          old_state=re.search(r'let desiredState=\s*S\.hecha \? "terminada" :\s*existing\.estado==="en_curso" \? "en_curso" :\s*"pendiente";',s)
+          if not old_state:
+              raise SystemExit('No se encontró desiredState en index.html')
+          replacement='''let desiredState=\n            S.hecha || cloudCompletedIds.has(String(S.ac_id)) ? "terminada" :\n            existing.estado==="en_curso" ? "en_curso" :\n            "pendiente";'''
+          s=s[:old_state.start()]+replacement+s[old_state.end():]
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Validate and publish
+        run: |
+          node --check tablet/index.html
+          node --check index.html
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html tablet/index.html
+          git rm .github/workflows/fix-tablet-gestion-sync.yml
+          git commit -m 'Fix Tablet next pending and Gestion completed sync [sync-fix]'
+          git push
