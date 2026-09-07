@@ -1,0 +1,36 @@
+name: Fix returned vehicles cleaning list
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-salen-to-clean.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch planner
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old='Gr[ne].salen.push({id:G.id,tamano:(Sf(`${U.get(G.id)||""} ${S.get(G.id)||""}`)||{}).nombre||"\\u2014",modelo:U.get(G.id)||"",estado:xe,cleanedOn:ve})'
+          new='saleItem={id:G.id,tamano:(Sf(`${U.get(G.id)||""} ${S.get(G.id)||""}`)||{}).nombre||"\\u2014",modelo:U.get(G.id)||"",estado:xe,cleanedOn:ve},Gr[ne].salen.push(saleItem),xe==="limpia_hoy"&&!Gr[ne].items.some(qa=>String(qa.id)===String(G.id))&&Gr[ne].items.push({key:`${G.id}|${ne}`,id:G.id,modelo:U.get(G.id)||"",tamano:saleItem.tamano,peso:1,category:"urgente",margenDias:0,nextDep:G.dep,arrastrada:!1,forzada:!1,movedFrom:null,hecha:!1})'
+          if old not in s:
+              raise SystemExit('PATCH_NOT_APPLIED: target not found')
+          s2=s.replace(old,new,1)
+          if old in s2 or new not in s2:
+              raise SystemExit('PATCH_NOT_APPLIED: validation failed')
+          p.write_text(s2,encoding='utf-8')
+      - name: Commit and remove workflow
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Include returned vehicles needing cleaning in plan'
+          git rm .github/workflows/fix-salen-to-clean.yml
+          git commit -m 'Remove one-shot cleaning list fix workflow'
+          git push
