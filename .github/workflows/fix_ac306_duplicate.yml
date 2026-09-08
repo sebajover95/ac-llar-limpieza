@@ -27,9 +27,19 @@ jobs:
           p.write_text(s.replace(old, new, 1), encoding='utf-8')
           print('AC306_DEDUP_PATCH_APPLIED')
 
-      - name: Syntax check
+      - name: Syntax check JavaScript inside HTML
+        shell: bash
         run: |
-          node --check index.html
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s = Path('index.html').read_text(encoding='utf-8')
+          blocks = re.findall(r'<script[^>]*>([\\s\\S]*?)</script>', s, flags=re.I)
+          if not blocks:
+              raise SystemExit('NO_SCRIPT_BLOCKS_FOUND')
+          Path('/tmp/app.js').write_text('\n'.join(blocks), encoding='utf-8')
+          PY
+          node --check /tmp/app.js
 
       - name: Commit patch and remove one-shot workflow
         run: |
