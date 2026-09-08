@@ -14,20 +14,20 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
+          # TABLET: replace the whole pause/resume handlers, regardless of minor minified differences.
           p=Path('tablet/index.html')
           s=p.read_text(encoding='utf-8')
-          old='''let pauseSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="en_curso")return;let now=Date.now();let accumulated=Number(local.tiempoAcumuladoSegundos||0)+Math.max(0,now-Number(local.tramoInicioAt||local.inicio||now))/1000;let q=supabaseClient.from("limpiezas").update({estado:"pausada",tiempo_acumulado_segundos:Math.round(accumulated),pausada_at:new Date(now).toISOString()});q=local.dbId?q.eq("id",local.dbId):q.eq("ac_id",local.acId).eq("usuario_id",authUser.id).eq("estado","en_curso");let {error}=await q;if(error){alert("No se pudo pausar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"pausada",tiempoAcumuladoSegundos:Math.round(accumulated),pausadaAt:now,tramoInicioAt:null}:xe))};'''
-          new='''let pauseSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="en_curso")return;let now=Date.now();let accumulated=Math.max(0,Number(local.tiempoAcumuladoSegundos||0)+Math.max(0,now-Number(local.tramoInicioAt||local.inicio||now))/1000);if(!local.dbId){alert("No se pudo pausar la limpieza: falta el identificador de Supabase.");return}let {error}=await supabaseClient.rpc("pausar_limpieza",{p_limpieza_id:local.dbId,p_tiempo_acumulado_segundos:Math.round(accumulated),p_pausada_at:new Date(now).toISOString()});if(error){alert("No se pudo pausar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"pausada",tiempoAcumuladoSegundos:Math.round(accumulated),pausadaAt:now,tramoInicioAt:null}:xe))};'''
-          if old not in s: raise SystemExit('Tablet pause pattern not found')
-          s=s.replace(old,new,1)
+          pause_new='''let pauseSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="en_curso")return;let now=Date.now();let accumulated=Math.max(0,Number(local.tiempoAcumuladoSegundos||0)+Math.max(0,now-Number(local.tramoInicioAt||local.inicio||now))/1000);if(!local.dbId){alert("No se pudo pausar la limpieza: falta el identificador de Supabase.");return}let {error}=await supabaseClient.rpc("pausar_limpieza",{p_limpieza_id:local.dbId,p_tiempo_acumulado_segundos:Math.round(accumulated),p_pausada_at:new Date(now).toISOString()});if(error){alert("No se pudo pausar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"pausada",tiempoAcumuladoSegundos:Math.round(accumulated),pausadaAt:now,tramoInicioAt:null}:xe))};'''
+          s2,n1=re.subn(r'let pauseSession=async id=>\{.*?\};',pause_new,s,count=1,flags=re.S)
+          if n1!=1: raise SystemExit('Could not locate Tablet pauseSession')
+          resume_new='''let resumeSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="pausada")return;let now=Date.now();if(!local.dbId){alert("No se pudo retomar la limpieza: falta el identificador de Supabase.");return}let {error}=await supabaseClient.rpc("retomar_limpieza",{p_limpieza_id:local.dbId,p_tramo_inicio_at:new Date(now).toISOString()});if(error){alert("No se pudo retomar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"en_curso",tramoInicioAt:now,pausadaAt:null}:xe))};'''
+          s3,n2=re.subn(r'let resumeSession=async id=>\{.*?\};',resume_new,s2,count=1,flags=re.S)
+          if n2!=1: raise SystemExit('Could not locate Tablet resumeSession')
+          p.write_text(s3,encoding='utf-8')
 
-          old='''let resumeSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="pausada")return;let now=Date.now();let q=supabaseClient.from("limpiezas").update({estado:"en_curso",tramo_inicio_at:new Date(now).toISOString(),pausada_at:null});q=local.dbId?q.eq("id",local.dbId):q.eq("ac_id",local.acId).eq("usuario_id",authUser.id).eq("estado","pausada");let {error}=await q;if(error){alert("No se pudo retomar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"en_curso",tramoInicioAt:now,pausadaAt:null}:xe))};'''
-          new='''let resumeSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="pausada")return;let now=Date.now();if(!local.dbId){alert("No se pudo retomar la limpieza: falta el identificador de Supabase.");return}let {error}=await supabaseClient.rpc("retomar_limpieza",{p_limpieza_id:local.dbId,p_tramo_inicio_at:new Date(now).toISOString()});if(error){alert("No se pudo retomar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"en_curso",tramoInicioAt:now,pausadaAt:null}:xe))};'''
-          if old not in s: raise SystemExit('Tablet resume pattern not found')
-          s=s.replace(old,new,1)
-          p.write_text(s,encoding='utf-8')
-
+          # GESTION: live list of vehicles currently cleaning on Tablet.
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
           old='[Y,se]=(0,c.useState)(()=>({})),[te,Fe]=(0,c.useState)({}),D=(0,c.useRef)(!1);'
@@ -71,7 +71,7 @@ jobs:
           from pathlib import Path
           for path in ['tablet/index.html','index.html']:
               text=Path(path).read_text(encoding='utf-8')
-              scripts=re.findall(r'<script(?:\\s[^>]*)?>([\\s\\S]*?)</script>',text,re.I)
+              scripts=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',text,re.I)
               if not scripts: raise SystemExit(f'No script found in {path}')
               for i,js in enumerate(scripts):
                   tmp=Path('/tmp/check.js'); tmp.write_text(js,encoding='utf-8')
