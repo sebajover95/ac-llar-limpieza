@@ -1,0 +1,79 @@
+name: Fix completed cleaning duplicate
+on:
+  push:
+    branches:
+      - main
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[fix-completed-duplicate]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch canonical cleaning key
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          old1 = 'let taskKey=forced?.key||`${row.ac_id}|${fecha}`;\n          let dia={...(next[fecha]||{cleaned:{}})};'
+          new1 = '''let taskKey=forced?.key||`${row.ac_id}|${fecha}`;
+          let dia={...(next[fecha]||{cleaned:{}})};'''
+          # Keep the original line but insert canonicalization immediately after cleaned is created.
+          marker1 = '''let cleaned={...(dia.cleaned||{})};
+          let tamanoPorAc={...(dia.tamanoPorAc||{})};'''
+          insert1 = '''let cleaned={...(dia.cleaned||{})};
+          let normalKey=`${row.ac_id}|${fecha}`;
+          let forcedPrefix=`F|${row.ac_id}|${fecha}|`;
+          // Una AC terminada en un día solo puede tener una clave de historial.
+          // Si antes existía la clave normal y ahora corresponde la forzada (o al revés),
+          // elimina la alternativa para que no aparezca como duplicada.
+          Object.keys(cleaned).forEach(existingKey=>{
+            if(existingKey!==taskKey && String(cleaned[existingKey])===String(row.ac_id) &&
+              (existingKey===normalKey || existingKey.startsWith(forcedPrefix))){
+              delete cleaned[existingKey];
+              changedDia=true;
+            }
+          });
+          let tamanoPorAc={...(dia.tamanoPorAc||{})};'''
+          if marker1 not in s:
+              raise SystemExit('No se encontró el bloque de historial esperado; no se modifica nada.')
+          s=s.replace(marker1,insert1,1)
+          marker2 = '''let taskKey=forced?.key||`${row.ac_id}|${fecha}`;
+          if(next.get(taskKey)!==fecha){next.set(taskKey,fecha);changed=true}'''
+          insert2 = '''let taskKey=forced?.key||`${row.ac_id}|${fecha}`;
+          let normalKey=`${row.ac_id}|${fecha}`;
+          let forcedPrefix=`F|${row.ac_id}|${fecha}|`;
+          for(let existingKey of [...next.keys()]){
+            if(existingKey!==taskKey && (existingKey===normalKey || existingKey.startsWith(forcedPrefix))){
+              next.delete(existingKey);
+              changed=true;
+            }
+          }
+          if(next.get(taskKey)!==fecha){next.set(taskKey,fecha);changed=true}'''
+          if marker2 not in s:
+              raise SystemExit('No se encontró el bloque de limpieza marcada esperado; no se modifica nada.')
+          s=s.replace(marker2,insert2,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Syntax check
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          if 'Una AC terminada en un día solo puede tener una clave de historial.' not in s:
+              raise SystemExit('Patch marker missing')
+          js=re.findall(r'<script(?:[^>]*)>(.*?)</script>',s,re.S|re.I)
+          Path('/tmp/app.js').write_text('\n'.join(js),encoding='utf-8')
+          PY
+          node --check /tmp/app.js
+      - name: Commit and remove one-shot workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git rm .github/workflows/fix_completed_ac_duplicate.yml
+          git commit -m 'Fix completed cleaning duplicate [fix-completed-duplicate]'
+          git push
