@@ -256,6 +256,16 @@ vf=async S=>{
           let taskKey=forced?.key||`${row.ac_id}|${fecha}`;
           let dia={...(next[fecha]||{cleaned:{}})};
           let cleaned={...(dia.cleaned||{})};
+// DUPLICATE-CLEANING-CANONICAL-KEY-V2
+let normalKey=`${row.ac_id}|${fecha}`;
+let forcedPrefix=`F|${row.ac_id}|${fecha}|`;
+Object.keys(cleaned).forEach(existingKey=>{
+  if(existingKey!==taskKey && String(cleaned[existingKey])===String(row.ac_id) &&
+    (existingKey===normalKey || existingKey.startsWith(forcedPrefix))){
+    delete cleaned[existingKey];
+    changedDia=true;
+  }
+});
           let tamanoPorAc={...(dia.tamanoPorAc||{})};
           let tiemposPorAc={...(dia.tiemposPorAc||{})};
           let changedDia=false;
@@ -291,6 +301,14 @@ vf=async S=>{
           if(!fecha)continue;
           let forced=(He||[]).find(F=>String(F.fecha).slice(0,10)===fecha&&String(F.id)===String(row.ac_id));
           let taskKey=forced?.key||`${row.ac_id}|${fecha}`;
+let normalKey=`${row.ac_id}|${fecha}`;
+let forcedPrefix=`F|${row.ac_id}|${fecha}|`;
+for(let existingKey of [...next.keys()]){
+  if(existingKey!==taskKey && (existingKey===normalKey || existingKey.startsWith(forcedPrefix))){
+    next.delete(existingKey);
+    changed=true;
+  }
+}
           if(next.get(taskKey)!==fecha){next.set(taskKey,fecha);changed=true}
         }
         return changed?next:prev;
