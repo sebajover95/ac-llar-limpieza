@@ -16,9 +16,7 @@ jobs:
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
-          if 'activeCleanings,setActiveCleanings' in s:
-              print('Indicator already present')
-          else:
+          if 'activeCleanings,setActiveCleanings' not in s:
               old='[Y,se]=(0,c.useState)(()=>({})),[te,Fe]=(0,c.useState)({}),D=(0,c.useRef)(!1);'
               new='[Y,se]=(0,c.useState)(()=>({})),[te,Fe]=(0,c.useState)({}),D=(0,c.useRef)(!1),[activeCleanings,setActiveCleanings]=(0,c.useState)([]);'
               if old not in s: raise SystemExit('Gestion state marker not found')
@@ -48,7 +46,7 @@ jobs:
               if old not in s: raise SystemExit('Gestion effect marker not found')
               s=s.replace(old,new,1)
               old='))),c.default.createElement("div",{style:{display:Vn==="calculo"?"block":"none"}}'
-              new='))),c.default.createElement("div",{className:"mb-4 rounded-xl px-4 py-3 flex items-center gap-3",style:{background:activeCleanings.length?"#E8F7F0":"var(--paper)",border:`1px solid ${activeCleanings.length?"#B8E5D1":"var(--line)"}`}},c.default.createElement("div",{className:"w-2.5 h-2.5 rounded-full shrink-0",style:{background:activeCleanings.length?"#1DB77A":"#94A3B8"}}),c.default.createElement("div",{className:"flex-1"},c.default.createElement("div",{className:"text-xs uppercase tracking-wide font-semibold",style:{color:activeCleanings.length?"#0F766E":"var(--muted)"}},activeCleanings.length?`Limpiezas en curso · ${activeCleanings.length}`:"Ninguna limpieza en curso"),activeCleanings.length>0&&c.default.createElement("div",{className:"flex flex-wrap gap-2 mt-1"},activeCleanings.map(S=>c.default.createElement("span",{key:S.id,className:"mono text-sm font-bold px-2 py-0.5 rounded-full",style:{background:"#fff",color:"var(--ink)",border:"1px solid #B8E5D1"}},S.ac_id)))),c.default.createElement("div",{style:{display:Vn==="calculo"?"block":"none"}}'
+              new='))),c.default.createElement("div",{className:"mb-4 rounded-xl px-4 py-3",style:{background:activeCleanings.length?"#E8F7F0":"var(--paper)",border:`1px solid ${activeCleanings.length?"#B8E5D1":"var(--line)"}`}},c.default.createElement("span",{className:"text-sm font-semibold",style:{color:activeCleanings.length?"#0F766E":"var(--muted)"}},activeCleanings.length?`🟢 Limpiezas en curso: ${activeCleanings.map(S=>S.ac_id).join(" · ")}`:"⚪ Ninguna limpieza en curso")),c.default.createElement("div",{style:{display:Vn==="calculo"?"block":"none"}}'
               if old not in s: raise SystemExit('Gestion UI marker not found')
               s=s.replace(old,new,1)
               p.write_text(s,encoding='utf-8')
