@@ -1,107 +1,77 @@
 name: Fix Tablet pause and Gestion live cleaning indicator
-
 on:
   push:
     branches: [main]
-
+permissions:
+  contents: write
 jobs:
   fix:
-    if: ${{ !contains(github.event.head_commit.message, '[skip-live-fix]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Patch Tablet pause/resume and Gestion live indicator
+      - name: Patch Gestion live cleaning indicator
         run: |
           python - <<'PY'
           from pathlib import Path
-
-          # ---------- TABLET ----------
-          p = Path('tablet/index.html')
-          s = p.read_text(encoding='utf-8')
-
-          old = '''let pauseSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="en_curso")return;let now=Date.now();let accumulated=Number(local.tiempoAcumuladoSegundos||0)+Math.max(0,now-Number(local.tramoInicioAt||local.inicio||now))/1000;let q=supabaseClient.from("limpiezas").update({estado:"pausada",tiempo_acumulado_segundos:Math.round(accumulated),pausada_at:new Date(now).toISOString()});q=local.dbId?q.eq("id",local.dbId):q.eq("ac_id",local.acId).eq("usuario_id",authUser.id).eq("estado","en_curso");let {error}=await q;if(error){alert("No se pudo pausar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"pausada",tiempoAcumuladoSegundos:Math.round(accumulated),pausadaAt:now,tramoInicioAt:null}:xe))};'''
-          new = '''let pauseSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="en_curso")return;let now=Date.now();let accumulated=Math.max(0,Number(local.tiempoAcumuladoSegundos||0)+Math.max(0,now-Number(local.tramoInicioAt||local.inicio||now))/1000);if(!local.dbId){alert("No se pudo pausar la limpieza: falta el identificador de Supabase.");return}let {error}=await supabaseClient.rpc("pausar_limpieza",{p_limpieza_id:local.dbId,p_tiempo_acumulado_segundos:Math.round(accumulated),p_pausada_at:new Date(now).toISOString()});if(error){alert("No se pudo pausar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"pausada",tiempoAcumuladoSegundos:Math.round(accumulated),pausadaAt:now,tramoInicioAt:null}:xe))};'''
-          if old not in s:
-              raise SystemExit('Tablet pause pattern not found')
-          s = s.replace(old, new, 1)
-
-          old = '''let resumeSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="pausada")return;let now=Date.now();let q=supabaseClient.from("limpiezas").update({estado:"en_curso",tramo_inicio_at:new Date(now).toISOString(),pausada_at:null});q=local.dbId?q.eq("id",local.dbId):q.eq("ac_id",local.acId).eq("usuario_id",authUser.id).eq("estado","pausada");let {error}=await q;if(error){alert("No se pudo retomar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"en_curso",tramoInicioAt:now,pausadaAt:null}:xe))};'''
-          new = '''let resumeSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="pausada")return;let now=Date.now();if(!local.dbId){alert("No se pudo retomar la limpieza: falta el identificador de Supabase.");return}let {error}=await supabaseClient.rpc("retomar_limpieza",{p_limpieza_id:local.dbId,p_tramo_inicio_at:new Date(now).toISOString()});if(error){alert("No se pudo retomar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"en_curso",tramoInicioAt:now,pausadaAt:null}:xe))};'''
-          if old not in s:
-              raise SystemExit('Tablet resume pattern not found')
-          s = s.replace(old, new, 1)
-          p.write_text(s, encoding='utf-8')
-
-          # ---------- GESTION ----------
-          p = Path('index.html')
-          s = p.read_text(encoding='utf-8')
-
-          old = '[Y,se]=(0,c.useState)(()=>({})),[te,Fe]=(0,c.useState)({}),D=(0,c.useRef)(!1);'
-          new = '[Y,se]=(0,c.useState)(()=>({})),[te,Fe]=(0,c.useState)({}),D=(0,c.useRef)(!1),[activeCleanings,setActiveCleanings]=(0,c.useState)([]);'
-          if old not in s:
-              raise SystemExit('Gestion state marker not found')
-          s = s.replace(old, new, 1)
-
-          old = '''},[He]);let k=(0,c.useCallback)(()=>{'''
-          new = '''},[He]);
-          (0,c.useEffect)(()=>{
-            let active=!0;
-            let syncActiveCleanings=async()=>{
-              try{
-                let sb=window.__ACLLAR_SUPABASE;
-                let session=(await sb.auth.getSession()).data.session;
-                if(!session?.user)return;
-                let res=await sb.from("limpiezas").select("id,ac_id,tamano,inicio,usuario_id,tramo_inicio_at").eq("estado","en_curso").order("inicio",{ascending:!0});
-                if(res.error)throw res.error;
-                if(active)setActiveCleanings(res.data||[]);
-              }catch(err){console.warn("No se pudieron sincronizar las limpiezas en curso:",err?.message||err)}
-            };
-            syncActiveCleanings();
-            let timer=setInterval(syncActiveCleanings,10000);
-            let channel=window.__ACLLAR_SUPABASE?.channel("acllar-gestion-en-curso")
-              .on("postgres_changes",{event:"*",schema:"public",table:"limpiezas"},()=>syncActiveCleanings())
-              .subscribe();
-            return()=>{active=!1;clearInterval(timer);if(channel&&window.__ACLLAR_SUPABASE)window.__ACLLAR_SUPABASE.removeChannel(channel)};
-          },[]);
-          let k=(0,c.useCallback)(()=>{'''
-          if old not in s:
-              raise SystemExit('Gestion effect marker not found')
-          s = s.replace(old, new, 1)
-
-          old = '))),c.default.createElement("div",{style:{display:Vn==="calculo"?"block":"none"}}'
-          new = '))),c.default.createElement("div",{className:"mb-4 rounded-xl px-4 py-3 flex items-center gap-3",style:{background:activeCleanings.length?"#E8F7F0":"var(--paper)",border:`1px solid ${activeCleanings.length?"#B8E5D1":"var(--line)"}`}},c.default.createElement("div",{className:"w-2.5 h-2.5 rounded-full shrink-0",style:{background:activeCleanings.length?"#1DB77A":"#94A3B8"}}),c.default.createElement("div",{className:"flex-1"},c.default.createElement("div",{className:"text-xs uppercase tracking-wide font-semibold",style:{color:activeCleanings.length?"#0F766E":"var(--muted)"}},activeCleanings.length?`Limpiezas en curso · ${activeCleanings.length}`:"Ninguna limpieza en curso"),activeCleanings.length>0&&c.default.createElement("div",{className:"flex flex-wrap gap-2 mt-1"},activeCleanings.map(S=>c.default.createElement("span",{key:S.id,className:"mono text-sm font-bold px-2 py-0.5 rounded-full",style:{background:"#fff",color:"var(--ink)",border:"1px solid #B8E5D1"}},S.ac_id)))),c.default.createElement("div",{style:{display:Vn==="calculo"?"block":"none"}}'
-          if old not in s:
-              raise SystemExit('Gestion UI marker not found')
-          s = s.replace(old, new, 1)
-          p.write_text(s, encoding='utf-8')
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          if 'activeCleanings,setActiveCleanings' not in s:
+              old='[Y,se]=(0,c.useState)(()=>({})),[te,Fe]=(0,c.useState)({}),D=(0,c.useRef)(!1);'
+              new='[Y,se]=(0,c.useState)(()=>({})),[te,Fe]=(0,c.useState)({}),D=(0,c.useRef)(!1),[activeCleanings,setActiveCleanings]=(0,c.useState)([]);'
+              if old not in s: raise SystemExit('Gestion state marker not found')
+              s=s.replace(old,new,1)
+              old='''},[He]);let k=(0,c.useCallback)(()=>{'''
+              new='''},[He]);
+              (0,c.useEffect)(()=>{
+                let active=!0;
+                let syncActiveCleanings=async()=>{
+                  try{
+                    let sb=window.__ACLLAR_SUPABASE;
+                    let session=(await sb.auth.getSession()).data.session;
+                    if(!session?.user)return;
+                    let res=await sb.from("limpiezas").select("id,ac_id,tamano,inicio,usuario_id,tramo_inicio_at").eq("estado","en_curso").order("inicio",{ascending:!0});
+                    if(res.error)throw res.error;
+                    if(active)setActiveCleanings(res.data||[]);
+                  }catch(err){console.warn("No se pudieron sincronizar las limpiezas en curso:",err?.message||err)}
+                };
+                syncActiveCleanings();
+                let timer=setInterval(syncActiveCleanings,10000);
+                let channel=window.__ACLLAR_SUPABASE?.channel("acllar-gestion-en-curso")
+                  .on("postgres_changes",{event:"*",schema:"public",table:"limpiezas"},()=>syncActiveCleanings())
+                  .subscribe();
+                return()=>{active=!1;clearInterval(timer);if(channel&&window.__ACLLAR_SUPABASE)window.__ACLLAR_SUPABASE.removeChannel(channel)};
+              },[]);
+              let k=(0,c.useCallback)(()=>{'''
+              if old not in s: raise SystemExit('Gestion effect marker not found')
+              s=s.replace(old,new,1)
+              old='))),c.default.createElement("div",{style:{display:Vn==="calculo"?"block":"none"}}'
+              new='))),c.default.createElement("div",{className:"mb-4 rounded-xl px-4 py-3 flex items-center gap-3",style:{background:activeCleanings.length?"#E8F7F0":"var(--paper)",border:`1px solid ${activeCleanings.length?"#B8E5D1":"var(--line)"}`}},c.default.createElement("div",{className:"w-2.5 h-2.5 rounded-full shrink-0",style:{background:activeCleanings.length?"#1DB77A":"#94A3B8"}}),c.default.createElement("div",{className:"flex-1"},c.default.createElement("div",{className:"text-xs uppercase tracking-wide font-semibold",style:{color:activeCleanings.length?"#0F766E":"var(--muted)"}},activeCleanings.length?`Limpiezas en curso · ${activeCleanings.length}`:"Ninguna limpieza en curso"),activeCleanings.length>0&&c.default.createElement("div",{className:"flex flex-wrap gap-2 mt-1"},activeCleanings.map(S=>c.default.createElement("span",{key:S.id,className:"mono text-sm font-bold px-2 py-0.5 rounded-full",style:{background:"#fff",color:"var(--ink)",border:"1px solid #B8E5D1"}},S.ac_id)))),c.default.createElement("div",{style:{display:Vn==="calculo"?"block":"none"}}'
+              if old not in s: raise SystemExit('Gestion UI marker not found')
+              s=s.replace(old,new,1)
+              p.write_text(s,encoding='utf-8')
+          else:
+              print('Indicator already present')
           PY
-
-      - name: Syntax check embedded JavaScript
+      - name: Syntax check Gestion
         run: |
           python - <<'PY'
-          import re, subprocess
+          import re,subprocess
           from pathlib import Path
-          for path in ['tablet/index.html','index.html']:
-              text=Path(path).read_text(encoding='utf-8')
-              scripts=re.findall(r'<script[^>]*>([\s\S]*?)</script>',text,re.I)
-              if not scripts:
-                  raise SystemExit(f'No script found in {path}')
-              for i,js in enumerate(scripts):
-                  tmp=Path('/tmp/check.js')
-                  tmp.write_text(js,encoding='utf-8')
-                  r=subprocess.run(['node','--check',str(tmp)],capture_output=True,text=True)
-                  if r.returncode:
-                      print(r.stderr)
-                      raise SystemExit(f'Syntax error in {path}, script {i}')
+          text=Path('index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',text,re.I)
+          if not scripts: raise SystemExit('No script found')
+          for i,js in enumerate(scripts):
+              Path('/tmp/check.js').write_text(js,encoding='utf-8')
+              r=subprocess.run(['node','--check','/tmp/check.js'],capture_output=True,text=True)
+              if r.returncode:
+                  print(r.stderr); raise SystemExit('JavaScript validation failed')
           print('Syntax OK')
           PY
-
-      - name: Commit patched files
+      - name: Commit and remove one-shot workflows
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tablet/index.html index.html
-          git diff --cached --quiet && { echo "No changes"; exit 0; }
-          git commit -m "Fix pause timing and show live cleanings in Gestion [skip-live-fix]"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git rm .github/workflows/one-shot-reversible.yml .github/workflows/fix_pause_and_gestion_live.yml
+          git commit -m 'Show live Tablet cleanings in Gestion [live-indicator]'
           git push
