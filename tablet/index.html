@@ -135,7 +135,20 @@ return()=>{
   supabaseClient.removeChannel(channel);
 };
 },[authUser]);
-let login=async()=>{setAuthBusy(!0);setAuthError("");let {error}=await supabaseClient.auth.signInWithPassword({email:authEmail.trim(),password:authPass});if(error)setAuthError(error.message||"No se pudo iniciar sesión.");setAuthBusy(!1)};
+(0,B.useEffect)(()=>{
+  if(!authUser)return;
+  let active=!0;
+  let loadSessions=async()=>{
+    let {data,error}=await supabaseClient.from("limpiezas").select("id,ac_id,tamano,empresa,nombre,inicio,fin,estado,usuario_id,tiempo_acumulado_segundos,pausada_at,tramo_inicio_at").in("estado",["en_curso","pausada"]).order("inicio",{ascending:!1});
+    if(error){console.error("No se pudieron recuperar las sesiones activas:",error.message);return}
+    if(!active)return;
+    let rows=(data||[]).map(u=>({id:u.estado==="pausada"?`P|${u.id}`:`S|${u.id}`,dbId:u.id,acId:u.ac_id,tamano:u.tamano||"Grande",empresa:u.empresa||null,nombre:u.nombre||null,inicio:u.inicio?new Date(u.inicio).getTime():Date.now(),fin:null,estado:u.estado,tiempoAcumuladoSegundos:Number(u.tiempo_acumulado_segundos||0),pausadaAt:u.pausada_at?new Date(u.pausada_at).getTime():null,tramoInicioAt:u.estado==="en_curso"?(u.tramo_inicio_at?new Date(u.tramo_inicio_at).getTime():(u.inicio?new Date(u.inicio).getTime():Date.now())):null}));
+    n(prev=>[...prev.filter(x=>x.estado!=="en_curso"&&x.estado!=="pausada"),...rows]);
+  };
+  loadSessions();
+  let timer=setInterval(loadSessions,5000);
+  return()=>{active=!1;clearInterval(timer)};
+},[authUser]);let login=async()=>{setAuthBusy(!0);setAuthError("");let {error}=await supabaseClient.auth.signInWithPassword({email:authEmail.trim(),password:authPass});if(error)setAuthError(error.message||"No se pudo iniciar sesión.");setAuthBusy(!1)};
 let logout=async()=>{await supabaseClient.auth.signOut()};
 let P=async j=>{
   if(d.some(ae=>ae.acId===j.id)){
@@ -158,15 +171,16 @@ let P=async j=>{
 let y=async(j,ae)=>{let local=t.find(xe=>xe.id===s);if(!local)return;let fin=Date.now();let {error}=await supabaseClient.from("limpiezas").update({empresa:j,nombre:(ae||"").trim()||null,fin:new Date(fin).toISOString(),estado:"terminada"}).eq("ac_id",local.acId).eq("usuario_id",authUser.id).eq("estado","en_curso");if(error){alert("No se pudo registrar el final en Supabase: "+error.message);return}let {error:planError}=await supabaseClient.from("limpieza_plan").update({estado:"terminada"}).eq("fecha",a?.fecha||p).eq("ac_id",local.acId);if(planError)console.warn("No se pudo actualizar el estado del plan:",planError.message);n(J=>J.map(xe=>xe.id===s?{...xe,empresa:j,nombre:(ae||"").trim()||null,fin,estado:"terminada"}:xe));i(prev=>prev&&prev.fecha===p?{...prev,items:(prev.items||[]).filter(xe=>xe.id!==local.acId)}:prev);l(null);r("principal")};
 let O=()=>{l(null),r("principal")};
 let I=async j=>{
-  if(!window.confirm("¿Cancelar esta limpieza en curso? No se registrará y podrá volver a iniciarse desde cero."))return;
   let local=t.find(xe=>xe.id===j);
   if(!local)return;
+  if(!window.confirm(`ATENCION: vas a CANCELAR la limpieza de ${local.acId}. Se perdera el tiempo acumulado y volvera a quedar disponible.`))return;
+  if(!window.confirm(`CONFIRMACION FINAL: ¿Seguro que quieres borrar la limpieza activa de ${local.acId}? El contador volvera a cero.`))return;
   let q=supabaseClient.from("limpiezas").delete();
-  q=local.dbId?q.eq("id",local.dbId):q.eq("ac_id",local.acId).eq("usuario_id",authUser.id).eq("estado","en_curso");
+  q=local.dbId?q.eq("id",local.dbId):q.eq("ac_id",local.acId).in("estado",["en_curso","pausada"]);
   let {error}=await q;
-  if(error){alert("No se pudo cancelar la limpieza en Supabase: "+error.message);return}
-  if(local.planId){let {error:planError}=await supabaseClient.from("limpieza_plan").update({estado:"pendiente"}).eq("id",local.planId);if(planError)console.warn("No se pudo devolver el plan a pendiente:",planError.message)}
-  else {let {error:planError}=await supabaseClient.from("limpieza_plan").update({estado:"pendiente"}).eq("fecha",p).eq("ac_id",local.acId).eq("estado","en_curso");if(planError)console.warn("No se pudo devolver el plan a pendiente:",planError.message)}
+  if(error){alert("NO SE PUDO CANCELAR LA LIMPIEZA: "+error.message);return}
+  let {error:planError}=await supabaseClient.from("limpieza_plan").update({estado:"pendiente"}).eq("ac_id",local.acId).eq("estado","en_curso");
+  if(planError)console.warn("No se pudo devolver el plan a pendiente:",planError.message);
   n(ae=>ae.filter(J=>J.id!==j));
 };
 let b=(j,ae)=>{n(J=>J.map(xe=>xe.id===j?{...xe,...ae}:xe))};
