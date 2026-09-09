@@ -256,6 +256,7 @@ vf=async S=>{
           let taskKey=forced?.key||`${row.ac_id}|${fecha}`;
           let dia={...(next[fecha]||{cleaned:{}})};
           let cleaned={...(dia.cleaned||{})};
+          let changedDia=false;
 // DUPLICATE-CLEANING-CANONICAL-KEY-V2
 let normalKey=`${row.ac_id}|${fecha}`;
 let forcedPrefix=`F|${row.ac_id}|${fecha}|`;
@@ -268,7 +269,6 @@ Object.keys(cleaned).forEach(existingKey=>{
 });
           let tamanoPorAc={...(dia.tamanoPorAc||{})};
           let tiemposPorAc={...(dia.tiemposPorAc||{})};
-          let changedDia=false;
 
           for(let oldKey of Object.keys(cleaned)){
             if(oldKey!==taskKey && String(cleaned[oldKey])===String(row.ac_id)){
