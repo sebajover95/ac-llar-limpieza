@@ -1,0 +1,93 @@
+name: Harden Tablet active sessions and confirmations
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  harden:
+    if: ${{ !contains(github.event.head_commit.message, '[tablet-hardening]') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch Tablet
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('tablet/index.html')
+          s = p.read_text(encoding='utf-8')
+
+          old = '''    let paused=await supabaseClient.from("limpiezas").select("id,ac_id,tamano,empresa,nombre,inicio,fin,estado,usuario_id,tiempo_acumulado_segundos,pausada_at,tramo_inicio_at").eq("usuario_id",authUser.id).eq("estado","pausada").order("pausada_at",{ascending:!1});
+              if(paused.error)throw new Error("No se pudieron recuperar las limpiezas pausadas: "+paused.error.message);
+              let pausedRows=(paused.data||[]).map(u=>({id:`P|${u.id}`,dbId:u.id,acId:u.ac_id,tamano:u.tamano||"Grande",empresa:u.empresa||null,nombre:u.nombre||null,inicio:u.inicio?new Date(u.inicio).getTime():Date.now(),fin:null,estado:"pausada",tiempoAcumuladoSegundos:Number(u.tiempo_acumulado_segundos||0),pausadaAt:u.pausada_at?new Date(u.pausada_at).getTime():null,tramoInicioAt:null}));
+              n(prev=>[...prev.filter(x=>x.estado!=="pausada"),...pausedRows]);'''
+          new = '''    let activeRowsRes=await supabaseClient.from("limpiezas").select("id,ac_id,tamano,empresa,nombre,inicio,fin,estado,usuario_id,tiempo_acumulado_segundos,pausada_at,tramo_inicio_at").eq("estado","en_curso").order("inicio",{ascending:!1});
+              if(activeRowsRes.error)throw new Error("No se pudieron recuperar las limpiezas en curso: "+activeRowsRes.error.message);
+              let activeRows=(activeRowsRes.data||[]).map(u=>({id:`S|${u.id}`,dbId:u.id,acId:u.ac_id,tamano:u.tamano||"Grande",empresa:u.empresa||null,nombre:u.nombre||null,inicio:u.inicio?new Date(u.inicio).getTime():Date.now(),fin:null,estado:"en_curso",tiempoAcumuladoSegundos:Number(u.tiempo_acumulado_segundos||0),pausadaAt:null,tramoInicioAt:u.tramo_inicio_at?new Date(u.tramo_inicio_at).getTime():(u.inicio?new Date(u.inicio).getTime():Date.now())}));
+              let paused=await supabaseClient.from("limpiezas").select("id,ac_id,tamano,empresa,nombre,inicio,fin,estado,usuario_id,tiempo_acumulado_segundos,pausada_at,tramo_inicio_at").eq("estado","pausada").order("pausada_at",{ascending:!1});
+              if(paused.error)throw new Error("No se pudieron recuperar las limpiezas pausadas: "+paused.error.message);
+              let pausedRows=(paused.data||[]).map(u=>({id:`P|${u.id}`,dbId:u.id,acId:u.ac_id,tamano:u.tamano||"Grande",empresa:u.empresa||null,nombre:u.nombre||null,inicio:u.inicio?new Date(u.inicio).getTime():Date.now(),fin:null,estado:"pausada",tiempoAcumuladoSegundos:Number(u.tiempo_acumulado_segundos||0),pausadaAt:u.pausada_at?new Date(u.pausada_at).getTime():null,tramoInicioAt:null}));
+              n(prev=>[...prev.filter(x=>x.estado!=="en_curso"&&x.estado!=="pausada"),...activeRows,...pausedRows]);'''
+          if old not in s:
+              raise SystemExit('sync block not found')
+          s=s.replace(old,new,1)
+
+          old = 'let I=j=>{window.confirm("¿Cancelar esta limpieza en curso? No se registrará.")&&n(ae=>ae.filter(J=>J.id!==j))};'
+          new = '''let I=async j=>{
+            let local=t.find(xe=>xe.id===j);
+            if(!local)return;
+            if(!window.confirm(`⚠️ ATENCIÓN\\n\\nVas a CANCELAR la limpieza de ${local.acId}.\\nSe perderá el tiempo acumulado y la limpieza volverá a quedar disponible.`))return;
+            if(!window.confirm(`CONFIRMACIÓN FINAL\\n\\n¿Seguro que quieres borrar la limpieza activa de ${local.acId}?\\n\\nPulsa Aceptar solo si realmente quieres reiniciarla desde cero.`))return;
+            let q=supabaseClient.from("limpiezas").delete();
+            q=local.dbId?q.eq("id",local.dbId):q.eq("ac_id",local.acId).in("estado",["en_curso","pausada"]);
+            let {error}=await q;
+            if(error){alert("NO SE PUDO CANCELAR LA LIMPIEZA.\\n\\n"+error.message);return}
+            let {error:planError}=await supabaseClient.from("limpieza_plan").update({estado:"pendiente"}).eq("ac_id",local.acId).eq("estado","en_curso");
+            if(planError)console.warn("No se pudo devolver el plan a pendiente:",planError.message);
+            n(ae=>ae.filter(J=>J.id!==j));
+          };'''
+          if old not in s:
+              raise SystemExit('cancel block not found')
+          s=s.replace(old,new,1)
+
+          old = 'let X=j=>{window.confirm("¿Eliminar esta entrada del historial?")&&n(ae=>ae.filter(J=>J.id!==j))};'
+          new = '''let X=j=>{
+            if(!window.confirm("⚠️ ATENCIÓN\\n\\nVas a eliminar esta entrada del historial de la Tablet.\\nEsta acción no debe usarse para cancelar una limpieza activa."))return;
+            if(!window.confirm("CONFIRMACIÓN FINAL\\n\\n¿Seguro que quieres eliminar esta entrada del historial?"))return;
+            n(ae=>ae.filter(J=>J.id!==j));
+          };'''
+          if old not in s:
+              raise SystemExit('history delete block not found')
+          s=s.replace(old,new,1)
+
+          old = 'return B.default.createElement(B.default.Fragment,null,a&&B.default.createElement("div",{className:"my-4 rounded-2xl p-5 text-center",style:{background:"#FFF6E5",border:"1px solid #F3D28A"}},B.default.createElement("div",{className:"text-base font-semibold mb-2"},"Primero, carga los Excel del día"),'
+          new = 'return B.default.createElement(B.default.Fragment,null,e.length>0&&B.default.createElement("div",{className:"mt-4 rounded-2xl p-5",style:{background:"#E7F7F0",border:"2px solid var(--teal)"}},B.default.createElement("div",{className:"text-lg font-bold display mb-2",style:{color:"var(--teal)"}},"🟢 LIMPIEZAS EN CURSO"),B.default.createElement("div",{className:"text-sm",style:{color:"var(--ink)"}},e.map(j=>j.acId).join(" · ")),B.default.createElement("div",{className:"text-xs mt-2",style:{color:"var(--muted)"}},"Si aparece aquí, la limpieza está activa en Supabase y no se puede iniciar otra hasta cancelarla o terminarla.")),a&&B.default.createElement("div",{className:"my-4 rounded-2xl p-5 text-center",style:{background:"#FFF6E5",border:"1px solid #F3D28A"}},B.default.createElement("div",{className:"text-base font-semibold mb-2"},"Primero, carga los Excel del día"),'
+          if old not in s:
+              raise SystemExit('UI block not found')
+          s=s.replace(old,new,1)
+
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: Check Tablet JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('tablet/index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?:[^>]*)>(.*?)</script>',s,re.S)
+          Path('/tmp/tablet.js').write_text(scripts[-1],encoding='utf-8')
+          PY
+          node --check /tmp/tablet.js
+
+      - name: Commit and remove one-shot workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/hardening_tablet_active_sessions.yml
+          git add tablet/index.html .github/workflows/hardening_tablet_active_sessions.yml
+          git commit -m "Harden Tablet active sessions [tablet-hardening]"
+          git push
