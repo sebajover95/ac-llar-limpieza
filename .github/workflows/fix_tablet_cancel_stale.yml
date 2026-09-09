@@ -1,0 +1,49 @@
+name: Fix Tablet cancel cleanup state
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[tablet-cancel-fix]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch cancel handler
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('tablet/index.html')
+          s = p.read_text(encoding='utf-8')
+          old = 'let I=j=>{window.confirm("¿Cancelar esta limpieza en curso? No se registrará.")&&n(ae=>ae.filter(J=>J.id!==j))};'
+          new = '''let I=async j=>{\n  if(!window.confirm("¿Cancelar esta limpieza en curso? No se registrará y podrá volver a iniciarse desde cero."))return;\n  let local=t.find(xe=>xe.id===j);\n  if(!local)return;\n  let q=supabaseClient.from("limpiezas").delete();\n  q=local.dbId?q.eq("id",local.dbId):q.eq("ac_id",local.acId).eq("usuario_id",authUser.id).eq("estado","en_curso");\n  let {error}=await q;\n  if(error){alert("No se pudo cancelar la limpieza en Supabase: "+error.message);return}\n  if(local.planId){let {error:planError}=await supabaseClient.from("limpieza_plan").update({estado:"pendiente"}).eq("id",local.planId);if(planError)console.warn("No se pudo devolver el plan a pendiente:",planError.message)}\n  else {let {error:planError}=await supabaseClient.from("limpieza_plan").update({estado:"pendiente"}).eq("fecha",p).eq("ac_id",local.acId).eq("estado","en_curso");if(planError)console.warn("No se pudo devolver el plan a pendiente:",planError.message)}\n  n(ae=>ae.filter(J=>J.id!==j));\n};'''
+          if old not in s:
+              raise SystemExit('No se encontró exactamente el handler de cancelar esperado')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Syntax check
+        run: |
+          node --check <(python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('tablet/index.html').read_text(encoding='utf-8')
+          m=re.search(r'<script[^>]*>(.*?)</script>',s,re.S)
+          if not m: raise SystemExit('No se encontró script')
+          print(m.group(1))
+          PY
+          )
+      - name: Commit patched Tablet
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tablet/index.html
+          git diff --cached --quiet || git commit -m 'Fix Tablet cancel cleanup [tablet-cancel-fix]'
+          git push
+      - name: Remove one-shot workflow
+        if: success()
+        run: |
+          git rm .github/workflows/fix_tablet_cancel_stale.yml
+          git commit -m 'Remove Tablet cancel fix workflow [tablet-cancel-fix]'
+          git push
