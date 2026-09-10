@@ -1245,5 +1245,20 @@ lucide-react/dist/esm/lucide-react.js:
   setTimeout(()=>{refresh();mo.observe(document.getElementById('root')||document.body,{childList:true,subtree:true})},{once:true});
 })();
 </script>
+<script>
+/* ACLLAR-ORDEN-MANUAL-V1: solo orden manual de pendientes */
+(()=>{
+  const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+  const sb=()=>window.__ACLLAR_SUPABASE;
+  const rowFor=id=>[...document.querySelectorAll('.mono.text-base.font-bold')].find(x=>x.textContent.trim()===String(id))?.closest('div.flex.items-center.gap-2.flex-wrap.py-1\\.5');
+  async function load(){const c=sb();if(!c)return [];const {data,error}=await c.from('limpieza_plan').select('id,ac_id,prioridad,estado,fecha').eq('fecha',today()).neq('estado','terminada').order('prioridad',{ascending:true});if(error){console.warn('Orden AC:',error.message);return []}return data||[]}
+  async function normalize(rows){const c=sb();if(!c)return rows;let n=0,changed=false;const ordered=[...rows].sort((a,b)=>{const pa=a.prioridad==null?1e9:Number(a.prioridad),pb=b.prioridad==null?1e9:Number(b.prioridad);return pa-pb||String(a.ac_id).localeCompare(String(b.ac_id),undefined,{numeric:true})});for(const r of ordered){if(r.prioridad==null){const {error}=await c.from('limpieza_plan').update({prioridad:n}).eq('id',r.id);if(!error){r.prioridad=n;changed=true}}n++}return changed?await load():rows}
+  function reorder(rows){const ordered=[...rows].sort((a,b)=>(a.prioridad??1e9)-(b.prioridad??1e9));const nodes=ordered.map(r=>rowFor(r.ac_id)).filter(Boolean);if(!nodes.length)return;const parent=nodes[0].parentElement;if(!parent)return;nodes.forEach(n=>parent.appendChild(n))}
+  async function move(id,dir){const c=sb();if(!c)return;let rows=await normalize(await load());rows.sort((a,b)=>(a.prioridad??1e9)-(b.prioridad??1e9));const i=rows.findIndex(r=>String(r.ac_id)===String(id)),j=i+dir;if(i<0||j<0||j>=rows.length)return;const a=rows[i],b=rows[j],pa=a.prioridad,pb=b.prioridad;const [ra,rb]=await Promise.all([c.from('limpieza_plan').update({prioridad:pb}).eq('id',a.id),c.from('limpieza_plan').update({prioridad:pa}).eq('id',b.id)]);if(ra.error||rb.error){alert('No se pudo guardar el nuevo orden.');return}refresh()}
+  function decorate(rows){const ordered=[...rows].sort((a,b)=>(a.prioridad??1e9)-(b.prioridad??1e9));ordered.forEach((r,i)=>{const row=rowFor(r.ac_id);if(!row)return;let box=row.querySelector('[data-ac-order-buttons]');if(!box){box=document.createElement('div');box.dataset.acOrderButtons='1';box.style.cssText='display:flex;flex-direction:column;gap:2px;margin-right:4px;flex:0 0 auto';const mk=(txt,dir,title)=>{const b=document.createElement('button');b.type='button';b.textContent=txt;b.title=title;b.setAttribute('aria-label',title);b.style.cssText='width:24px;height:18px;line-height:14px;padding:0;border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--ink);font-size:12px;font-weight:700';b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();move(r.ac_id,dir)});return b};box.append(mk('▲',-1,'Subir prioridad'),mk('▼',1,'Bajar prioridad'));row.prepend(box)}const bs=box.querySelectorAll('button');bs[0].disabled=i===0;bs[1].disabled=i===ordered.length-1;bs.forEach(b=>b.style.opacity=b.disabled?'.3':'1')});reorder(ordered)}
+  let timer=null;async function refresh(){clearTimeout(timer);timer=setTimeout(async()=>{let rows=await normalize(await load());decorate(rows)},150)}
+  window.addEventListener('load',()=>{refresh();const root=document.getElementById('root')||document.body;new MutationObserver(()=>refresh()).observe(root,{childList:true,subtree:true})});
+})();
+</script>
 </body>
 </html>
