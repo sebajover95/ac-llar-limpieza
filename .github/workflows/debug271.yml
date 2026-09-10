@@ -1,0 +1,28 @@
+name: Debug 271
+on:
+  push:
+    paths:
+      - '.github/workflows/debug271.yml'
+permissions:
+  contents: write
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract
+        shell: python
+        run: |
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          for needle,name in [('let fl=','fl.txt'),('Hr=','hr.txt'),('Gr=','gr.txt')]:
+            i=s.find(needle)
+            Path(name).write_text(s[max(0,i-5000):i+25000] if i>=0 else 'NOT FOUND',encoding='utf-8')
+          Path('debug_done.txt').write_text('done')
+      - name: Commit
+        run: |
+          git config user.name 'github-actions'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add fl.txt hr.txt gr.txt debug_done.txt
+          git commit -m 'debug 271 source' || exit 0
+          git push
