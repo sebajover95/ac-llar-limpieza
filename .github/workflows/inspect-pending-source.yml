@@ -1,6 +1,8 @@
 name: Inspect pending source
 on:
-  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/inspect-pending-source.yml'
 permissions:
   contents: write
 jobs:
@@ -12,7 +14,6 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-          import re
           s=Path('index.html').read_text(encoding='utf-8')
           out=[]
           for needle in ['let fl=', 'let Es=or.filter', 'limpieza-retornos-manuales']:
