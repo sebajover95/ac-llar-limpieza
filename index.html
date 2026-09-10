@@ -493,7 +493,7 @@ let Ff=[];Ii||or.forEach((G,ne)=>{let xe=Ga[Vr[ne]];G.release<=fa&&xe>fa&&Ff.pus
 // Refuerzo final: toda forzada pendiente debe existir en el día visible de Gestión.
 // Esto garantiza que la misma fila que llega a Supabase/Tablet también aparezca en "A limpiar".
 for(let G of He){
-  if(hp.has(G.key))continue;
+  if(hp.has(G.key)||Hr.has(G.id))continue;
 
   let ne=String(G.fecha).slice(0,10);
   if(!/^\d{4}-\d{2}-\d{2}$/.test(ne))continue;
