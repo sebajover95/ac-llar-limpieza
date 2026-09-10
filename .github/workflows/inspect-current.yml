@@ -10,13 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect callback
+      - name: Inspect active cleaning usage
         run: |
           python - <<'PY'
           from pathlib import Path
           s=Path('index.html').read_text(encoding='utf-8')
-          for needle in ['fl=(0,c.useCallback','useCallback)(()=>{if(!z.data','},[z,Z','manualReturnsLoaded.current&&z.data.length&&Z.data.length&&fl()','limpieza_plan']:
+          for needle in ['fl=(0,c.useCallback','activeCleanings','setActiveCleanings','limpiezas','en_curso']:
               print('\nNEEDLE',needle,'COUNT',s.count(needle))
-              i=s.find(needle)
-              if i>=0: print(s[max(0,i-1000):i+3500])
+              start=0
+              n=0
+              while n<8:
+                  i=s.find(needle,start)
+                  if i<0: break
+                  print('\n---MATCH',n,'---\n',s[max(0,i-700):i+1800])
+                  start=i+1; n+=1
           PY
