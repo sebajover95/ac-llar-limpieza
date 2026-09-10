@@ -6,22 +6,22 @@ permissions:
   contents: read
 jobs:
   inspect:
-    if: contains(github.event.head_commit.message, '[pending-inspect]')
+    if: contains(github.event.head_commit.message, '[pending-inspect-auto]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect active cleaning usage
+      - name: Inspect exact pending line
         run: |
           python - <<'PY'
           from pathlib import Path
           s=Path('index.html').read_text(encoding='utf-8')
-          for needle in ['fl=(0,c.useCallback','activeCleanings','setActiveCleanings','limpiezas','en_curso']:
+          for needle in ['let or=[],dl=[]','latestCleanedByAc','activeCleanings','if(xe&&xe<cn)continue','for(let G of Ef)']:
               print('\nNEEDLE',needle,'COUNT',s.count(needle))
               start=0
               n=0
-              while n<8:
+              while n<5:
                   i=s.find(needle,start)
                   if i<0: break
-                  print('\n---MATCH',n,'---\n',s[max(0,i-700):i+1800])
-                  start=i+1; n+=1
+                  print('\n---MATCH',n,'---\n',s[max(0,i-1000):i+2500])
+                  start=i+1;n+=1
           PY
