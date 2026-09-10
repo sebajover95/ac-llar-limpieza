@@ -1,20 +1,92 @@
 (function(){
 'use strict';
-if(window.__ACLLAR_ORDEN_MANUAL_V6__)return;
-window.__ACLLAR_ORDEN_MANUAL_V6__=true;
-const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
-const client=()=>window.__ACLLAR_SUPABASE||window.supabaseClient||window.supabase;
-const esc=s=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-function getChecks(){return Array.from(document.querySelectorAll('input[type="checkbox"]')).map(cb=>{let n=cb.parentElement,row=null;for(let i=0;i<8&&n;i++,n=n.parentElement){let t=n.innerText||'',ms=t.match(/AC-\d{3}[A-Z]?/g)||[];if(ms.length===1){row=n;break}}let t=row?.innerText||cb.parentElement?.innerText||'',m=t.match(/AC-\d{3}[A-Z]?/);return m?{ac:m[0],row}:null}).filter(Boolean).filter((x,i,a)=>a.findIndex(y=>y.ac===x.ac)===i)}
-async function plan(){const c=client();if(!c||typeof c.from!=='function')return[];const r=await c.from('limpieza_plan').select('ac_id,prioridad').eq('fecha',today());return r.error?[]:(r.data||[])}
-async function save(ac,p){const c=client();if(!c||typeof c.from!=='function')return false;const r=await c.from('limpieza_plan').update({prioridad:p}).eq('fecha',today()).eq('ac_id',ac);return !r.error}
-function order(rs,p){const map=new Map((p||[]).map(x=>[String(x.ac_id),Number(x.prioridad)]));return rs.slice().sort((a,b)=>(Number.isFinite(map.get(a.ac))?map.get(a.ac):999999)-(Number.isFinite(map.get(b.ac))?map.get(b.ac):999999)||a.ac.localeCompare(b.ac))}
-async function normalize(rs,p){const map=new Map((p||[]).map(x=>[String(x.ac_id),x]));let max=0;(p||[]).forEach(x=>{if(Number.isFinite(Number(x.prioridad)))max=Math.max(max,Number(x.prioridad))});for(const r of rs){if(!map.has(r.ac)||!Number.isFinite(Number(map.get(r.ac).prioridad))){max++;await save(r.ac,max);map.set(r.ac,{ac_id:r.ac,prioridad:max})}}return Array.from(map.values())}
-function reorderDom(rs,p){const o=order(rs,p);if(o.length<2)return o;const parent=o[0].row?.parentElement;if(!parent)return o;o.forEach(x=>{if(x.row&&x.row.parentElement===parent)parent.appendChild(x.row)});return o}
-function mount(){let panel=document.getElementById('acllar-order-panel-v5');if(!panel){panel=document.createElement('div');panel.id='acllar-order-panel-v5';document.body.appendChild(panel);const st=document.createElement('style');st.id='acllar-order-style-v5';st.textContent=`#acllar-order-panel-v5{position:fixed;right:18px;bottom:18px;width:270px;background:#fff;border:2px solid #15302b;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.2);z-index:2147483647;padding:10px;font-family:Arial,sans-serif}#acllar-order-panel-v5 .hd{font-weight:700;color:#15302b;font-size:15px;margin-bottom:7px}#acllar-order-panel-v5 .sub{font-size:11px;color:#64736d;margin-bottom:8px}#acllar-order-panel-v5 .item{display:flex;align-items:center;gap:6px;padding:5px 0;border-top:1px solid #e5e9e6}#acllar-order-panel-v5 .grip{cursor:grab;color:#687770;font-size:14px}#acllar-order-panel-v5 .name{flex:1;font-weight:700;font-family:monospace;font-size:14px}#acllar-order-panel-v5 button{width:30px;height:28px;border:1px solid #b8c6bd;border-radius:6px;background:#f8faf8;font-weight:700;cursor:pointer}#acllar-order-panel-v5 button:hover{background:#e8eee9}#acllar-order-panel-v5 button:disabled{opacity:.35}#acllar-order-panel-v5 .drag{outline:2px dashed #e8a13a;background:#fff9ee}`;document.head.appendChild(st)}return panel}
-async function render(){const panel=mount();const rs=getChecks();if(!rs.length){panel.innerHTML='<div class="hd">Orden de limpieza</div><div class="sub">Abre un día con AC pendientes para ordenar.</div>';return}let p=await plan();p=await normalize(rs,p);const o=order(rs,p);panel.innerHTML='<div class="hd">Orden de limpieza</div><div class="sub">Arrastra un AC o usa ▲ ▼. Se guarda automáticamente.</div>'+o.map((r,i)=>`<div class="item" draggable="true" data-ac="${esc(r.ac)}"><span class="grip">☰</span><span class="name">${esc(r.ac)}</span><button data-dir="-1" data-ac="${esc(r.ac)}" ${i===0?'disabled':''}>▲</button><button data-dir="1" data-ac="${esc(r.ac)}" ${i===o.length-1?'disabled':''}>▼</button></div>`).join('');
-Array.from(panel.querySelectorAll('button')).forEach(b=>b.onclick=async e=>{e.preventDefault();e.stopPropagation();const ac=b.dataset.ac,dir=Number(b.dataset.dir),fresh=await plan(),rr=getChecks(),oo=order(rr,fresh),k=oo.findIndex(x=>x.ac===ac),j=k+dir;if(k<0||j<0||j>=oo.length)return;const a=oo[k],bb=oo[j],mp=new Map(fresh.map(x=>[String(x.ac_id),x])),pa=Number(mp.get(a.ac)?.prioridad),pb=Number(mp.get(bb.ac)?.prioridad);if(!Number.isFinite(pa)||!Number.isFinite(pb))return;const ok=await save(a.ac,pb)&&await save(bb.ac,pa);if(ok){reorderDom(rr,await plan());await render()}});
-let drag=null;panel.querySelectorAll('.item').forEach(el=>{el.ondragstart=()=>{drag=el;el.classList.add('drag')};el.ondragend=()=>{drag=null;el.classList.remove('drag')};el.ondragover=e=>e.preventDefault();el.ondrop=async e=>{e.preventDefault();if(!drag||drag===el)return;const items=Array.from(panel.querySelectorAll('.item')),from=items.indexOf(drag),to=items.indexOf(el);if(from<0||to<0)return;const rr=getChecks(),fresh=await plan(),oo=order(rr,fresh);const moved=oo[from],target=oo[to],mp=new Map(fresh.map(x=>[String(x.ac_id),x])),a=Number(mp.get(moved.ac)?.prioridad),b=Number(mp.get(target.ac)?.prioridad);if(!Number.isFinite(a)||!Number.isFinite(b))return;const ok=await save(moved.ac,b)&&await save(target.ac,a);if(ok){reorderDom(rr,await plan());await render()}}})}
-let timer;function schedule(){clearTimeout(timer);timer=setTimeout(()=>render().catch(()=>{}),700)}
-new MutationObserver(muts=>{if(muts.some(m=>{const p=document.getElementById('acllar-order-panel-v5');return !p||!(p===m.target||p.contains(m.target))}))schedule()}).observe(document.body,{childList:true,subtree:true});window.addEventListener('load',schedule);schedule();
+if(window.__ACLLAR_ORDEN_V7__)return;
+window.__ACLLAR_ORDEN_V7__=true;
+
+function findRows(){
+  var seen={}, out=[];
+  document.querySelectorAll('input[type="checkbox"]').forEach(function(cb){
+    var n=cb.parentElement, row=null, ac=null;
+    for(var i=0;i<10&&n;i++,n=n.parentElement){
+      var t=n.innerText||'';
+      var m=t.match(/AC-\d{3}[A-Z]?/g)||[];
+      if(m.length===1){ac=m[0];row=n;break;}
+    }
+    if(ac&&!seen[ac]){seen[ac]=1;out.push({ac:ac,row:row});}
+  });
+  return out;
+}
+function today(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function client(){return window.__ACLLAR_SUPABASE||window.supabaseClient||window.supabase||null;}
+function mount(){
+  var p=document.getElementById('acllar-order-v7');
+  if(p)return p;
+  p=document.createElement('div');
+  p.id='acllar-order-v7';
+  p.style.cssText='position:fixed;right:20px;bottom:20px;width:300px;background:#ffffff;border:3px solid #15302b;border-radius:14px;box-shadow:0 10px 35px rgba(0,0,0,.28);z-index:2147483647;padding:12px;font-family:Arial,sans-serif;color:#15302b;display:block!important;visibility:visible!important;opacity:1!important;';
+  document.body.appendChild(p);
+  return p;
+}
+function draw(list){
+  var p=mount();
+  var h='<div style="font-weight:800;font-size:16px;margin-bottom:4px">ORDEN DE LIMPIEZA</div><div style="font-size:11px;margin-bottom:8px;color:#65736e">Sube o baja los AC pendientes</div>';
+  if(!list.length){h+='<div style="padding:10px 0;font-size:12px">No se han detectado AC pendientes todavía.</div>';p.innerHTML=h;return;}
+  list.forEach(function(x,i){
+    h+='<div data-ac="'+x.ac+'" style="display:flex;align-items:center;gap:7px;border-top:1px solid #e3e8e5;padding:7px 0">'+
+      '<span style="width:20px;font-weight:700;color:#7a8882">'+(i+1)+'</span>'+
+      '<b style="font-family:monospace;flex:1;font-size:14px">'+x.ac+'</b>'+
+      '<button data-up="'+x.ac+'" style="width:34px;height:30px;border:1px solid #9eaea5;border-radius:7px;background:#f6f9f7;font-size:18px;font-weight:800;cursor:pointer" '+(i===0?'disabled':'')+'>▲</button>'+
+      '<button data-down="'+x.ac+'" style="width:34px;height:30px;border:1px solid #9eaea5;border-radius:7px;background:#f6f9f7;font-size:18px;font-weight:800;cursor:pointer" '+(i===list.length-1?'disabled':'')+'>▼</button>'+
+      '</div>';
+  });
+  p.innerHTML=h;
+  p.querySelectorAll('button[data-up]').forEach(function(b){b.onclick=function(){move(list,b.getAttribute('data-up'),-1);};});
+  p.querySelectorAll('button[data-down]').forEach(function(b){b.onclick=function(){move(list,b.getAttribute('data-down'),1);};});
+}
+async function getPlan(){
+  var c=client();
+  if(!c||typeof c.from!=='function')return [];
+  try{var r=await c.from('limpieza_plan').select('ac_id,prioridad').eq('fecha',today());return r.error?[]:(r.data||[]);}catch(e){return [];}
+}
+async function setPriority(ac,p){
+  var c=client();
+  if(!c||typeof c.from!=='function')return;
+  try{await c.from('limpieza_plan').update({prioridad:p}).eq('fecha',today()).eq('ac_id',ac);}catch(e){}
+}
+function sortList(rows,plan){
+  var map={};
+  plan.forEach(function(x){if(x.prioridad!==null&&x.prioridad!==undefined)map[String(x.ac_id)]=Number(x.prioridad);});
+  return rows.slice().sort(function(a,b){var pa=Number.isFinite(map[a.ac])?map[a.ac]:999999;var pb=Number.isFinite(map[b.ac])?map[b.ac]:999999;return pa-pb||a.ac.localeCompare(b.ac);});
+}
+async function render(){
+  var rows=findRows();
+  var plan=await getPlan();
+  var list=sortList(rows,plan);
+  draw(list);
+}
+async function move(list,ac,dir){
+  var i=list.findIndex(function(x){return x.ac===ac;});
+  var j=i+dir;
+  if(i<0||j<0||j>=list.length)return;
+  var a=list[i],b=list[j];
+  list[i]=b;list[j]=a;
+  draw(list);
+  var plan=await getPlan(),map={};
+  plan.forEach(function(x){map[String(x.ac_id)]=Number(x.prioridad);});
+  var pa=Number.isFinite(map[a.ac])?map[a.ac]:i+1;
+  var pb=Number.isFinite(map[b.ac])?map[b.ac]:j+1;
+  await setPriority(a.ac,pb);
+  await setPriority(b.ac,pa);
+  var rows=findRows();
+  var by={};rows.forEach(function(x){by[x.ac]=x;});
+  var ordered=list.map(function(x){return by[x.ac];}).filter(Boolean);
+  if(ordered.length>1){var parent=ordered[0].row&&ordered[0].row.parentElement;if(parent)ordered.forEach(function(x){if(x.row&&x.row.parentElement===parent)parent.appendChild(x.row);});}
+}
+function start(){
+  mount();
+  draw(findRows());
+  setTimeout(function(){render();},1200);
+  setInterval(function(){render();},15000);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
