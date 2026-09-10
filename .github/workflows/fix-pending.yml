@@ -5,7 +5,7 @@ on:
     branches: [main]
 jobs:
   patch:
-    if: contains(github.event.head_commit.message, '[pending-fix]') == false
+    if: contains(github.event.head_commit.message, '[pending-fix]') == false && contains(github.event.head_commit.message, '[pending-v13]') == false && contains(github.event.head_commit.message, '[pending-v13-trigger]') == false
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -21,18 +21,8 @@ jobs:
           s=p.read_text(encoding='utf-8')
           old='let or=[],dl=[];for(let G of Ef)(W.has(G.key)?dl:or).push(G);'
           new='let latestCleanedByAc=new Map;Object.entries(Y||{}).forEach(G=>{let d=Ta(G[0]),v=G[1];if(!d||!v||!v.cleaned)return;Object.values(v.cleaned).forEach(id=>{if(!id)return;let prev=latestCleanedByAc.get(id);if(!prev||d>prev)latestCleanedByAc.set(id,d)})});let or=[],dl=[];for(let G of Ef){let lc=latestCleanedByAc.get(G.id);(W.has(G.key)||(lc&&G.release&&lc>=G.release)?dl:or).push(G);}'
-          if old in s:
-            s=s.replace(old,new,1)
-          old='for(let G of He){if(hp.has(G.key))continue;let ne=new Date(`${G.fecha}T00:00:00`);'
-          new='for(let G of He){if(hp.has(G.key)||Hr.has(G.id))continue;let ne=new Date(`${G.fecha}T00:00:00`);'
-          if old in s:
-            s=s.replace(old,new,1)
-          old='for(let G of He){\n  if(hp.has(G.key))continue;'
-          new='for(let G of He){\n  if(hp.has(G.key)||Hr.has(G.id))continue;'
-          if old in s:
-            s=s.replace(old,new,1)
+          if old in s: s=s.replace(old,new,1)
           p.write_text(s,encoding='utf-8')
-          print('patched')
           PY
       - name: Commit
         run: |
@@ -41,4 +31,5 @@ jobs:
           git add index.html
           git diff --cached --quiet && exit 0
           git commit -m "Fix pending AC exclusions and cleaned history [pending-fix]"
+          git pull --rebase origin main
           git push origin HEAD:main
