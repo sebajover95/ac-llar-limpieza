@@ -1,0 +1,1 @@
+Automatic pending architecture trigger.
