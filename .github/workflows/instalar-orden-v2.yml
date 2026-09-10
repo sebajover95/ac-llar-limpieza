@@ -10,16 +10,16 @@ permissions:
 
 jobs:
   install:
-    if: "!contains(github.event.head_commit.message, '[orden-v4]')"
+    if: "!contains(github.event.head_commit.message, '[orden-v7]')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Instalar script de orden con cache-bust
+      - name: Instalar script de orden con cache-bust v7
         shell: python
         run: |
           from pathlib import Path
           import re
-          tag = '<script src="/ac-llar-limpieza/orden-ac.js?v=4"></script>'
+          tag = '<script src="/ac-llar-limpieza/orden-ac.js?v=7"></script>'
           for name in ['index.html', 'tablet/index.html']:
               p = Path(name)
               s = p.read_text(encoding='utf-8')
@@ -36,5 +36,5 @@ jobs:
           git config user.email "chatgpt@users.noreply.github.com"
           git add index.html tablet/index.html
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Instalar orden manual AC [orden-v4]"
+          git commit -m "Instalar orden manual AC [orden-v7]"
           git push
