@@ -1,4 +1,4 @@
-name: Aplicar orden manual de AC
+name: Restaurar aplicación estable
 
 on:
   push:
@@ -8,51 +8,17 @@ permissions:
   contents: write
 
 jobs:
-  patch:
-    if: "!contains(github.event.head_commit.message, '[orden-ac]')"
+  restore:
+    if: "!contains(github.event.head_commit.message, '[restore-ac]')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Restaurar base limpia y aplicar cambio mínimo
-        shell: python
+      - name: Restaurar index estable
+        shell: bash
         run: |
-          from pathlib import Path
-          import subprocess
-          BASE='523274c4127d0d6d837116b8a93b629dfba10a3d'
-          subprocess.run(['git','checkout',BASE,'--','index.html','tablet/index.html'],check=True)
-          gestion=Path('index.html'); tablet=Path('tablet/index.html')
-          patch=r'''<script>
-          /* ACLLAR-ORDEN-MANUAL-V2 */
-          (()=>{
-            const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
-            const sb=()=>window.__ACLLAR_SUPABASE;
-            const findRow=id=>[...document.querySelectorAll('span.mono.text-base.font-bold')].find(x=>x.textContent.trim()===String(id)&&x.parentElement?.querySelector('button[aria-label="Marcar como limpiada"]'))?.parentElement;
-            async function load(){const c=sb();if(!c)return [];const {data,error}=await c.from('limpieza_plan').select('id,ac_id,prioridad,estado,fecha').eq('fecha',today()).neq('estado','terminada').order('prioridad',{ascending:true});if(error){console.warn('Orden AC:',error.message);return []}return data||[]}
-            async function normalize(rows){const c=sb();if(!c)return rows;let max=rows.reduce((m,r)=>r.prioridad==null?m:Math.max(m,Number(r.prioridad)||0),-1),changed=false;for(const r of rows.filter(x=>x.prioridad==null)){max++;const {error}=await c.from('limpieza_plan').update({prioridad:max}).eq('id',r.id);if(!error){r.prioridad=max;changed=true}}return changed?await load():rows}
-            function reorder(rows){const nodes=rows.map(r=>findRow(r.ac_id)).filter(Boolean);if(!nodes.length)return;const parent=nodes[0].parentElement;const current=[...parent.children];const same=nodes.every((n,i)=>current.indexOf(n)===i);if(same)return;nodes.forEach(n=>parent.appendChild(n))}
-            async function move(id,dir){const rows=(await normalize(await load())).sort((a,b)=>(a.prioridad??1e9)-(b.prioridad??1e9));const i=rows.findIndex(r=>String(r.ac_id)===String(id)),j=i+dir;if(i<0||j<0||j>=rows.length)return;const a=rows[i],b=rows[j],pa=a.prioridad,pb=b.prioridad;const c=sb();if(!c)return;const [ra,rb]=await Promise.all([c.from('limpieza_plan').update({prioridad:pb}).eq('id',a.id),c.from('limpieza_plan').update({prioridad:pa}).eq('id',b.id)]);if(ra.error||rb.error){alert('No se pudo guardar el nuevo orden.');return}refresh()}
-            function decorate(rows){const ordered=[...rows].sort((a,b)=>(a.prioridad??1e9)-(b.prioridad??1e9));ordered.forEach((r,i)=>{const row=findRow(r.ac_id);if(!row)return;let box=row.querySelector('[data-ac-order-buttons]');if(!box){box=document.createElement('span');box.dataset.acOrderButtons='1';box.style.cssText='display:inline-flex;gap:2px;margin-left:4px;vertical-align:middle';const mk=(txt,dir,title)=>{const b=document.createElement('button');b.type='button';b.textContent=txt;b.title=title;b.setAttribute('aria-label',title);b.style.cssText='width:22px;height:22px;line-height:18px;padding:0;border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--ink);font-size:12px;font-weight:700;cursor:pointer';b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();move(r.ac_id,dir)});return b};box.append(mk('▲',-1,'Subir prioridad'),mk('▼',1,'Bajar prioridad'));const idSpan=row.querySelector('span.mono.text-base.font-bold');if(idSpan)idSpan.insertAdjacentElement('afterend',box);else row.prepend(box)}const bs=box.querySelectorAll('button');bs[0].disabled=i===0;bs[1].disabled=i===ordered.length-1;bs.forEach(b=>b.style.opacity=b.disabled?'.35':'1')});reorder(ordered)}
-            let timer=null;async function refresh(){clearTimeout(timer);timer=setTimeout(async()=>{const rows=await normalize(await load());decorate(rows)},250)}
-            window.addEventListener('load',()=>{refresh();setInterval(refresh,1500)});
-          })();
-          </script>'''
-          src=gestion.read_text(encoding='utf-8')
-          src=src.rsplit('</body>',1)[0]+patch+'\n</body></html>\n'
-          gestion.write_text(src,encoding='utf-8')
-          t=tablet.read_text(encoding='utf-8')
-          old='.order("fecha",{ascending:!0}).order("ac_id",{ascending:!0})'
-          new='.order("fecha",{ascending:!0}).order("prioridad",{ascending:!0}).order("ac_id",{ascending:!0})'
-          if old not in t: raise SystemExit('No se encontró el orden actual de TABLET')
-          t=t.replace(old,new,1)
-          tablet.write_text(t,encoding='utf-8')
-      - name: Comprobar cambios
-        run: |
-          test "$(grep -o 'ACLLAR-ORDEN-MANUAL-V2' index.html | wc -l)" = "1"
-          grep -q '.order("prioridad",{ascending:!0})' tablet/index.html
-      - name: Publicar cambios
-        run: |
-          git config user.name 'ChatGPT'
-          git config user.email 'chatgpt@users.noreply.github.com'
-          git add index.html tablet/index.html
-          git commit -m 'Aplicar orden manual V2 [orden-ac]'
+          git checkout 866c06f901fa104a2f8800e6d384bd39acfd1020 -- index.html
+          git config user.name "ChatGPT"
+          git config user.email "chatgpt@users.noreply.github.com"
+          git add index.html
+          git commit -m "Restaurar página estable [restore-ac]" || exit 0
           git push
