@@ -1,0 +1,42 @@
+name: Fix pending logic
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  patch:
+    if: contains(github.event.head_commit.message, '[pending-fix]') == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch pending calculation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old='let or=[],dl=[];for(let G of Ef)(W.has(G.key)?dl:or).push(G);'
+          new='let latestCleanedByAc=new Map;Object.entries(Y||{}).forEach(G=>{let d=Ta(G[0]),v=G[1];if(!d||!v||!v.cleaned)return;Object.values(v.cleaned).forEach(id=>{if(!id)return;let prev=latestCleanedByAc.get(id);if(!prev||d>prev)latestCleanedByAc.set(id,d)})});let or=[],dl=[];for(let G of Ef){let lc=latestCleanedByAc.get(G.id);(W.has(G.key)||(lc&&G.release&&lc>=G.release)?dl:or).push(G);}'
+          if old not in s: raise SystemExit('missing classification marker')
+          s=s.replace(old,new,1)
+          old='for(let G of He){if(hp.has(G.key))continue;let ne=new Date(`${G.fecha}T00:00:00`);'
+          new='for(let G of He){if(hp.has(G.key)||Hr.has(G.id))continue;let ne=new Date(`${G.fecha}T00:00:00`);'
+          if old not in s: raise SystemExit('missing forced marker')
+          s=s.replace(old,new,1)
+          old='for(let G of He){\n  if(hp.has(G.key))continue;'
+          new='for(let G of He){\n  if(hp.has(G.key)||Hr.has(G.id))continue;'
+          if old not in s: raise SystemExit('missing final forced marker')
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+          print('patched')
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix pending AC exclusions and cleaned history [pending-fix]"
+          git push
