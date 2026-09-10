@@ -1,27 +1,10 @@
-name: Restaurar aplicación estable
+name: Herramienta manual de orden AC
 
 on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: write
+  workflow_dispatch:
 
 jobs:
-  restore:
-    if: "!contains(github.event.head_commit.message, '[restored-ac2]')"
+  noop:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Restaurar index estable
-        shell: bash
-        run: |
-          git checkout caa175d370acf54201205d4fe0ae25324ff50f69 -- index.html
-          printf '\n<!-- AC·LLAR stable restore -->\n' >> index.html
-          git config user.name "ChatGPT"
-          git config user.email "chatgpt@users.noreply.github.com"
-          git add index.html
-          git commit -m "Restaurar página estable [restored-ac2]"
-          git push
+      - run: echo "Sin cambios automáticos."
