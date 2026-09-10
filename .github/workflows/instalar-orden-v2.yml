@@ -1,0 +1,40 @@
+name: Instalar orden manual AC
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  install:
+    if: "!contains(github.event.head_commit.message, '[orden-v2]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Insertar script de orden sin tocar la aplicación
+        shell: python
+        run: |
+          from pathlib import Path
+          tag = '<script src="/ac-llar-limpieza/orden-ac.js"></script>'
+          for name in ['index.html', 'tablet/index.html']:
+              p = Path(name)
+              s = p.read_text(encoding='utf-8')
+              while tag in s:
+                  s = s.replace(tag, '')
+              pos = s.rfind('</body>')
+              if pos < 0:
+                  raise SystemExit(f'No se encontró </body> en {name}')
+              s = s[:pos] + tag + '\n' + s[pos:]
+              p.write_text(s, encoding='utf-8')
+      - name: Publicar cambios
+        shell: bash
+        run: |
+          git config user.name "ChatGPT"
+          git config user.email "chatgpt@users.noreply.github.com"
+          git add index.html tablet/index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Instalar orden manual AC [orden-v2]"
+          git push
