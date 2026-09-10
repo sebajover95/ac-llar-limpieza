@@ -1,1 +1,1 @@
-Automatic pending architecture trigger. Inspect exact line.
+Automatic pending architecture trigger. Inspect return filter.
