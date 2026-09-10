@@ -1,17 +1,36 @@
 name: Fix pending logic
 on:
-  workflow_dispatch:
   push:
     branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   patch:
-    if: "!contains(github.event.head_commit.message, 'pending')"
+    if: contains(github.event.head_commit.message, 'AUTO-ARCH-REAL')
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Sync latest main
-        run: git pull --rebase origin main
-      - name: Legacy patch disabled
-        run: echo disabled
+      - name: Patch automatic pending architecture
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html');s=p.read_text(encoding='utf-8');changes=0
+          old='let or=[],dl=[];for(let G of Ef){let lc=latestCleanedByAc.get(G.id);'
+          new='let or=[],dl=[];for(let G of Ef){let norm=String(G.id||"").trim().toUpperCase();if((activeCleanings||[]).some(S=>String(S.ac_id).trim().toUpperCase()===norm))continue;let lc=latestCleanedByAc.get(G.id);'
+          if old in s:s=s.replace(old,new,1);changes+=1
+          old='let xe=(Kt.get(G.id)||[]).find(i2=>i2>=G.ret)||null;if(xe&&xe<cn)continue;let ve,De;'
+          new='let xe=(Kt.get(G.id)||[]).find(i2=>i2>=G.ret)||null;let ve,De;'
+          if old in s:s=s.replace(old,new,1);changes+=1
+          p.write_text(s,encoding='utf-8');print('changes',changes)
+          if changes<1:raise SystemExit('No pending marker found')
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Install real pending architecture [AUTO-ARCH-REAL]"
+          git pull --rebase origin main
+          git push origin HEAD:main
