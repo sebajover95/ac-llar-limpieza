@@ -1,0 +1,84 @@
+name: Fix automatic pending architecture
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: contains(github.event.head_commit.message, '[pending-v13]') == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch pending calculation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          changes=0
+
+          old='[activeCleanings,setActiveCleanings]=(0,c.useState)([]);'
+          new='[activeCleanings,setActiveCleanings]=(0,c.useState)([]),[manualReturns,setManualReturns]=(0,c.useState)(()=>({}));let manualReturnsLoaded=(0,c.useRef)(!1);'
+          if old in s:
+            s=s.replace(old,new,1); changes+=1
+
+          old='(0,c.useEffect)(()=>{(async()=>{try{let S=await window.storage.get("acllar-reservas-R");'
+          new='(0,c.useEffect)(()=>{(async()=>{try{let S=await window.storage.get("limpieza-retornos-manuales",!1);if(S&&S.value){let U=JSON.parse(S.value);U&&typeof U==="object"&&setManualReturns(U)} }catch{}manualReturnsLoaded.current=!0})();(async()=>{try{let S=await window.storage.get("acllar-reservas-R");'
+          if old in s:
+            s=s.replace(old,new,1); changes+=1
+
+          old='let fl=(0,c.useCallback)(()=>{if(!z.data.length||!Z.data.length)'
+          new='let fl=(0,c.useCallback)(async()=>{if(!z.data.length||!Z.data.length)'
+          if old in s:
+            s=s.replace(old,new,1); changes+=1
+
+          old='let fl=(0,c.useCallback)(async()=>{if(!z.data.length||!Z.data.length){ce("Necesito el archivo (reservas 14 días) y el de en alquiler.");return}'
+          # no-op compatibility marker
+
+          old='for(let G of Z.data){if(Z.mapping.estatus&&Q0(G[Z.mapping.estatus]))continue;let ne=df(G[Z.mapping.id]);ne&&jn.add(ne);let xe=Z.mapping.entrega?Ta(G[Z.mapping.entrega]):null,ve=Ta(G[Z.mapping.devolucion]);Qe(ne,xe),It(ne,xe,ve)}'
+          new='for(let G of Z.data){if(Z.mapping.estatus&&Q0(G[Z.mapping.estatus]))continue;let ne=df(G[Z.mapping.id]);ne&&jn.add(ne);let xe=Z.mapping.entrega?Ta(G[Z.mapping.entrega]):null,ve=Ta(G[Z.mapping.devolucion]);let mr=ne&&manualReturns[ne]?Ta(manualReturns[ne]):null;if(mr)ve=mr;Qe(ne,xe);if(ne&&ve){if(ve===_t()&&!mr)continue;It(ne,xe,ve)}}'
+          if old in s:
+            s=s.replace(old,new,1); changes+=1
+
+          old='if(Z.data.length&&le&&Object.keys(le).length){let G=Ze(_t()),ne=Object.keys(le).filter(ve=>ve<G).sort(),xe=ne[ne.length-1];if(xe){let ve=le[xe],De=new Set,ka=wi(_t(),-14);Object.entries(Y||{}).forEach(([qa,Na])=>{if(!Na||!Na.cleaned)return;let ja=Ta(qa);!ja||ja<ka||Object.values(Na.cleaned).forEach(ml=>{ml&&De.add(ml)})});for(let qa of ve.acs||[]){if(!qa.id||jn.has(qa.id)||Hr.has(qa.id)||De.has(qa.id))continue;let Na=qa.ret?Ta(qa.ret):null,ja=Ta(xe);(!Na||Na>_t())&&(Na=wi(ja,1)),Na>_t()&&(Na=_t()),It(qa.id,null,Na)}}}'
+          new='if(Z.data.length&&le&&Object.keys(le).length){let G=Ze(_t()),De=new Set,ka=wi(_t(),-14);Object.entries(Y||{}).forEach(([qa,Na])=>{if(!Na||!Na.cleaned)return;let ja=Ta(qa);!ja||ja<ka||Object.values(Na.cleaned).forEach(ml=>{ml&&De.add(ml)})});let latestByAc=new Map;for(let [snapDate,snap] of Object.entries(le||{})){if(!snapDate||snapDate>G)continue;for(let qa of snap?.acs||[]){if(!qa?.id)continue;let ret=qa.ret?Ta(qa.ret):null;if(!ret)continue;let prev=latestByAc.get(qa.id);if(!prev||ret>prev.ret||(ret===prev.ret&&snapDate>prev.snapDate))latestByAc.set(qa.id,{ret,snapDate})}}for(let [id,info] of latestByAc){if(!id||jn.has(id)||Hr.has(id)||De.has(id))continue;let mr=manualReturns[id]?Ta(manualReturns[id]):null;let Na=mr||info.ret;if(!Na||Na>_t())continue;if(Na===_t()&&!mr)continue;It(id,null,Na)}}'
+          if old in s:
+            s=s.replace(old,new,1); changes+=1
+
+          old='},[z,Z]);let Jg=async S=>'
+          new='},[z,Z,le,manualReturns]);let Jg=async S=>'
+          if old in s:
+            s=s.replace(old,new,1); changes+=1
+
+          # Recalculate when cloud snapshots/manual returns finish loading.
+          marker='(0,c.useEffect)(()=>{manualReturnsLoaded.current&&z.data.length&&Z.data.length&&fl()},[manualReturns,le]);'
+          if marker not in s:
+            needle='},[z,Z,le,manualReturns]);let Jg=async S=>'
+            repl='},[z,Z,le,manualReturns]);'+marker+'let Jg=async S=>'
+            if needle in s:
+              s=s.replace(needle,repl,1); changes+=1
+
+          # Never re-add excluded vehicles from forced list.
+          old='for(let G of He){if(hp.has(G.key)||Hr.has(G.id))continue;'
+          if old not in s:
+            # previous patch may not have landed; patch both known forms
+            old2='for(let G of He){if(hp.has(G.key))continue;'
+            new2='for(let G of He){if(hp.has(G.key)||Hr.has(G.id))continue;'
+            if old2 in s:
+              s=s.replace(old2,new2,1); changes+=1
+
+          p.write_text(s,encoding='utf-8')
+          print('changes',changes)
+          if changes<5:
+            raise SystemExit('Expected pending architecture markers were not all found')
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix automatic pending architecture [pending-v13]"
+          git push origin HEAD:main
