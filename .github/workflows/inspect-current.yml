@@ -10,13 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect markers
+      - name: Inspect callback
         run: |
           python - <<'PY'
           from pathlib import Path
           s=Path('index.html').read_text(encoding='utf-8')
-          for needle in ['activeCleanings','manualReturns','limpieza-retornos-manuales','let fl=(0,c.useCallback)','for(let G of Z.data){','if(Z.data.length&&le&&Object.keys(le).length)','let or=[],dl=[]','setActiveCleanings']:
+          for needle in ['fl=(0,c.useCallback','useCallback)(()=>{if(!z.data','},[z,Z','manualReturnsLoaded.current&&z.data.length&&Z.data.length&&fl()','limpieza_plan']:
               print('\nNEEDLE',needle,'COUNT',s.count(needle))
               i=s.find(needle)
-              if i>=0: print(s[max(0,i-1200):i+5000])
+              if i>=0: print(s[max(0,i-1000):i+3500])
           PY
