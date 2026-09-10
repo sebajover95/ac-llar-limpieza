@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   install:
-    if: "!contains(github.event.head_commit.message, '[orden-v12]')"
+    if: "!contains(github.event.head_commit.message, '[orden-v12]') && !contains(github.event.head_commit.message, '[pending-v13]') && !contains(github.event.head_commit.message, '[pending-v13-trigger]')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
