@@ -13,10 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Restaurar index estable
         shell: bash
         run: |
-          git checkout 866c06f901fa104a2f8800e6d384bd39acfd1020 -- index.html
+          git checkout 523274c4127d0d6d837116b8a93b629dfba10a3d -- index.html
           git config user.name "ChatGPT"
           git config user.email "chatgpt@users.noreply.github.com"
           git add index.html
