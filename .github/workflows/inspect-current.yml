@@ -10,18 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect exact pending line
+      - name: Inspect return filter
         run: |
           python - <<'PY'
           from pathlib import Path
           s=Path('index.html').read_text(encoding='utf-8')
-          for needle in ['let or=[],dl=[]','latestCleanedByAc','activeCleanings','if(xe&&xe<cn)continue','for(let G of Ef)']:
+          for needle in ['manualReturns[ne]','ve===_t()','latestByAc','let Na=mr||info.ret','limpieza-retornos-manuales']:
               print('\nNEEDLE',needle,'COUNT',s.count(needle))
-              start=0
-              n=0
-              while n<5:
-                  i=s.find(needle,start)
-                  if i<0: break
-                  print('\n---MATCH',n,'---\n',s[max(0,i-1000):i+2500])
-                  start=i+1;n+=1
+              i=s.find(needle)
+              if i>=0: print(s[max(0,i-3000):i+6000])
           PY
