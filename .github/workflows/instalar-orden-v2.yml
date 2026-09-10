@@ -4,13 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   install:
-    if: "!contains(github.event.head_commit.message, '[orden-v12]') && !contains(github.event.head_commit.message, 'pending')"
+    if: "!contains(github.event.head_commit.message, '[orden-v12]') && !contains(github.event.head_commit.message, 'pending') && !contains(github.event.head_commit.message, 'AUTO-ARCH-REAL')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
