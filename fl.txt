@@ -1,1 +1,296 @@
-NOT FOUND
+L.createObjectURL(O),re=document.createElement("a");re.href=Q,re.download=`historial_limpieza_${i}_${Ze(_t())}.csv`,document.body.appendChild(re),re.click(),document.body.removeChild(re),URL.revokeObjectURL(Q)};(0,c.useEffect)(()=>{b&&(async()=>{try{await window.storage.set("limpieza-config",JSON.stringify({types:e,capacity:a,horizonDays:n,sede:i}),!1)}catch(S){console.error("No se pudo guardar config",S)}})()},[e,a,n,i,b]);let Sf=(0,c.useCallback)(S=>N4(S,e),[e]),tp=["id","entrega","devolucion","estatus","sede"],ap=["id","devolucion","clase","estatus","entrega","sede"],rp=(S,U,O)=>{let Q=Vo(S,{type:"array",cellDates:!0}),re=Q.Sheets[Q.SheetNames[0]],fe=J0.sheet_to_json(re,{defval:""});if(!fe.length)throw new Error(`El archivo ${U} no tiene filas.`);let ke=Object.keys(fe[0]),pe={};for(let Ie of O)pe[Ie]=B4(ke,Ie);return{name:U,headers:ke,data:fe,mapping:pe}},Lf=S=>new Promise((U,O)=>{let Q=new FileReader;Q.onload=re=>U(re.target.result),Q.onerror=()=>O(new Error("No se pudo leer "+S.name)),Q.readAsArrayBuffer(S)}),np=(S,U)=>async O=>{let Q=O.target.files?.[0];if(Q){ce("");try{let re=await Lf(Q);S(rp(re,Q.name,U)),ae(null)}catch(re){ce(re.message)}}},Gg=np(R,tp),qg=np(Se,ap),sp=S=>{let O=Cr(S).replace(/\.[a-z]+$/,"").replace(/[^a-z]/g,"");return O.includes("enalquiler")||O.includes("alquiladas")?"C":O.includes("reservas")||O.includes("estasemana")||O.includes("semanaproxima")||O.includes("proxima")?"R":O.includes("carrentalreservations")||O.includes("carrental")?"?":null},jg=async S=>{try{let U=await Lf(S),O=Vo(U,{type:"array",cellDates:!0}),Q=O.Sheets[O.SheetNames[0]],re=J0.sheet_to_json(Q,{header:1,raw:!1,blankrows:!1});if(re.length<2)return null;let ke=re[0].findIndex(ge=>Cr(ge).includes("estatus")||Cr(ge).includes("estado"));if(ke<0)return null;let pe=0,Ie=0;for(let ge=1;ge<Math.min(re.length,40);ge++){let Ge=Cr(re[ge][ke]||"");Ge.includes("alquiler")?pe++:Ge.includes("reserva")&&Ie++}return pe>Ie?"C":Ie>pe?"R":null}catch{return null}},[ip,ol]=(0,c.useState)(""),[_s,op]=(0,c.useState)(!1),[lp,_i]=(0,c.useState)(""),ll=(0,c.useRef)(""),fn=(0,c.useRef)(null),ul=(0,c.useRef)(!1),up=async(S,{silent:U=!1}={})=>{U||ce("");let O={R:null,C:null},Q=[];for(let pe of S){let Ie=sp(pe.name);Ie==="R"||Ie==="C"?O[Ie]||(O[Ie]=pe):Ie==="?"&&Q.push(pe)}for(let pe of Q){let Ie=await jg(pe);Ie&&!O[Ie]&&(O[Ie]=pe)}let re=[];O.R||re.push("RESERVAS 14 D\xCDAS"),O.C||re.push("EN ALQUILER");let fe=[[O.R,R,tp,"acllar-reservas-R"],[O.C,Se,ap,"acllar-reservas-C"]],ke=0;for(let[pe,Ie,ge,storeKey]of fe)if(pe)try{let Ge=await Lf(pe),xe=rp(Ge,pe.name,ge);Ie(xe);try{await window.storage.set(storeKey,JSON.stringify(xe))}catch{}ke++}catch(Ge){U||ce(Ge.message)}return ke&&!U&&ae(null),U||(re.length?ol(`Cargados ${ke} de 2. No encontr\xE9: ${re.join(", ")}.`):ol("Los 2 archivos se cargaron correctamente. Ya puedes calcular.")),ke},Xg=async S=>{let U=[];for await(let O of S.values())O.kind==="file"&&/\.(xlsx|xls|csv)$/i.test(O.name)&&sp(O.name)&&U.push(await O.getFile());return U},$g=S=>S.map(U=>`${U.name}:${U.size}:${U.lastModified}`).sort().join("|"),Cf=async()=>{let S=Dt.current;if(S)try{if(await S.queryPermission({mode:"readwrite"})!=="granted"){_i("Permiso de carpeta pausado. Pulsa \u201CVigilar carpeta\u201D para reanudar."),cp();return}let U=await Xg(S),O=$g(U);if(O&&O!==ll.current){ll.current=O,ul.current=!0;let Q=await up(U,{silent:!0});_i(`Datos actualizados a las ${new Date().toLocaleTimeString("es-ES")} (${Q}/3).`)}}catch{}},fp=S=>{Dt.current=S,fn.current&&clearInterval(fn.current),op(!0),Cf(),fn.current=setInterval(Cf,3e4)},cp=()=>{fn.current&&clearInterval(fn.current),fn.current=null,op(!1)},Kg=async()=>{if(ol(""),_i(""),!window.showDirectoryPicker){ce("Tu navegador no permite vigilar carpeta. Usa \u201CElegir los 2 archivos\u201D.");return}try{let S=await window.showDirectoryPicker();if(await S.queryPermission({mode:"readwrite"})!=="granted"&&await S.requestPermission({mode:"readwrite"})!=="granted"){ce("Sin permiso de lectura sobre la carpeta.");return}try{await H4("carpeta",S)}catch{}ll.current="",fp(S)}catch(S){if(S&&S.name==="AbortError")return;ce("No se pudo abrir la carpeta: "+(S.message||S))}},Yg=async()=>{cp(),Dt.current=null,ll.current="",_i(""),await W4("carpeta")};(0,c.useEffect)(()=>((async()=>{try{let S=await z4("carpeta");if(!S)return;await S.queryPermission({mode:"readwrite"})==="granted"?fp(S):(Dt.current=S,_i("Hay una carpeta guardada. Pulsa \u201CVigilar carpeta\u201D para reanudar (el navegador pide un clic por seguridad)."))}catch{}})(),()=>{fn.current&&clearInterval(fn.current)}),[]),(0,c.useEffect)(()=>{ul.current&&z.data.length&&Z.data.length&&(ul.current=!1,fl())},[z,Z]);let Jg=async S=>{ol("");let U=[...S.target.files||[]];U.length&&(ul.current=!0,await up(U)),S.target.value=""},Qg=typeof window<"u"&&!!window.showDirectoryPicker,dp=(0,c.useMemo)(()=>{let S=new Set;for(let U of[z,Z])if(U.mapping.sede)for(let O of U.data){let Q=String(O[U.mapping.sede]??"").trim();Q&&S.add(Q)}return[...S].sort()},[z,Z]),fl=(0,c.useCallback)(()=>{if(!z.data.length||!Z.data.length){ce("Necesito el archivo de reservas (14 d\xEDas) y el de en alquiler.");return}if(!z.mapping.id||!z.mapping.entrega){ce("En 'reservas 14 d\xEDas' marca la columna de veh\xEDculo y la de entrega (salida).");return}if(!Z.mapping.id||!Z.mapping.devolucion){ce("En 'en alquiler' marca la columna de veh\xEDculo y la de devoluci\xF3n (vuelta).");return}if(a<=0){ce("La capacidad por persona debe ser mayor que 0.");return}ce("");let S=new Map,U=new Map,O=new Map,Q=G=>{if(G.mapping.id)for(let ne of G.data){let xe=ne[G.mapping.id],ve=df(xe);if(ve){if(U.has(ve)||U.set(ve,String(xe??"").trim()),G.mapping.clase){let De=String(ne[G.mapping.clase]??"").trim();De&&!S.has(ve)&&S.set(ve,De)}if(G.mapping.sede){let De=String(ne[G.mapping.sede]??"").trim();De&&!O.has(ve)&&O.set(ve,De)}}}};Q(Z),Q(z);let re=O.size>0,fe=G=>{if(!re||!i)return!0;let ne=O.get(G);return ne?Cr(ne)===Cr(i):!1},ke=new Set,pe=[],Ie=new Set,ge=[],Ge=new Set,Qe=(G,ne)=>{if(!G||!ne)return;let xe=`${G}|${Ze(ne)}`;Ge.has(xe)||(Ge.add(xe),ge.push({id:G,dep:ne,enSede:fe(G)}))},It=(G,ne,xe)=>{if(!G||Hr.has(G))return;if(!fe(G)){ke.add(G);return}let ve=`${G}|${ne?Ze(ne):""}|${xe?Ze(xe):""}`;Ie.has(ve)||(Ie.add(ve),pe.push({id:G,dep:ne,ret:xe}))};(G=>{if(!(!G.mapping.id||!G.mapping.entrega))for(let ne of G.data){if(G.mapping.estatus&&Q0(ne[G.mapping.estatus]))continue;let xe=ne[G.mapping.id];if(Cr(xe).includes("no asignado"))continue;let ve=df(xe),De=Ta(ne[G.mapping.entrega]),ka=G.mapping.devolucion?Ta(ne[G.mapping.devolucion]):null;Qe(ve,De),It(ve,De,ka)}})(z);let jn=new Set;for(let G of Z.data){if(Z.mapping.estatus&&Q0(G[Z.mapping.estatus]))continue;let ne=df(G[Z.mapping.id]);ne&&jn.add(ne);let xe=Z.mapping.entrega?Ta(G[Z.mapping.entrega]):null,ve=Ta(G[Z.mapping.devolucion]);Qe(ne,xe),It(ne,xe,ve)}if(Z.data.length&&le&&Object.keys(le).length){let G=Ze(_t()),ne=Object.keys(le).filter(ve=>ve<G).sort(),xe=ne[ne.length-1];if(xe){let ve=le[xe],De=new Set,ka=wi(_t(),-14);Object.entries(Y||{}).forEach(([qa,Na])=>{if(!Na||!Na.cleaned)return;let ja=Ta(qa);!ja||ja<ka||Object.values(Na.cleaned).forEach(ml=>{ml&&De.add(ml)})});for(let qa of ve.acs||[]){if(!qa.id||jn.has(qa.id)||Hr.has(qa.id)||De.has(qa.id))continue;let Na=qa.ret?Ta(qa.ret):null,ja=Ta(xe);(!Na||Na>_t())&&(Na=wi(ja,1)),Na>_t()&&(Na=_t()),It(qa.id,null,Na)}}}let Kt=new Map;for(let G of pe)G.dep&&(Kt.has(G.id)||Kt.set(G.id,[]),Kt.get(G.id).push(G.dep));for(let G of Kt.values())G.sort((ne,xe)=>ne-xe);let fa=_t(),Pa=wi(fa,n),Ii=Fa===Ze(fa),cn=Ii?wi(fa,1):fa,Ei=[],Wr=[],_f=0,If={};for(let G of pe){if(!G.ret||G.ret>Pa)continue;let xe=(Kt.get(G.id)||[]).find(i2=>i2>=G.ret)||null;if(xe&&xe<cn)continue;let ve,De;xe?(ve=U4(G.ret,xe),De=xe<=Pa?xe:Pa):(ve=null,De=Pa);let ka=U.get(G.id)||"",qa=S.get(G.id)||"",Na=`${ka} ${qa}`.trim(),ja=Sf(Na),ml=ja?ja.peso:1,s2=ja?ja.nombre:"Sin dato";Na||_f++,ja&&ja.nombre&&(If[G.id]=ja.nombre),Ei.push({id:G.id,key:`${G.id}|${Ze(G.ret)}`,modelo:ka,tamano:s2,peso:ml,margenDias:ve,nextDep:xe,release:G.ret,deadline:De,arrastrada:G.ret<cn})}let hp=new Set;Object.values(Y||{}).forEach(G=>{!G||!G.cleaned||Object.keys(G.cleaned).forEach(ne=>{ne&&ne.startsWith("F|")&&hp.add(ne)})});for(let G of He){if(hp.has(G.key)||Hr.has(G.id))continue;let ne=new Date(`${G.fecha}T00:00:00`);if(isNaN(ne)||ne>Pa)continue;let xe=ne<cn?cn:ne,ve=e.find(ka=>ka.nombre===G.tamano),De=ve?ve.peso:1;Ei.push({id:G.id,key:G.key,modelo:"(a\xF1adida a mano)",tamano:G.tamano,peso:De,margenDias:0,nextDep:xe,release:xe,deadline:xe,arrastrada:!1,forzada:!0})}if(Ei.length===0){ae({days:[],warnings:["No hay vueltas dentro del horizonte."],recommended:0,horizonEnd:Pa});return}let cl=null;for(let G of Ei){let ne=G.release<cn?cn:G.release;(!cl||ne<cl)&&(cl=ne)}let a2=cl||cn,Ga=[];for(let G=new Date(a2);G<=Pa;G=wi(G,1))V4(G)&&Ga.push(new Date(G));if(Ga.length===0){ae({days:[],warnings:["No hay d\xEDas laborables dentro del periodo."],recommended:0,horizonEnd:Pa});return}let r2=G=>{for(let ne=0;ne<Ga.length;ne++)if(Ga[ne]>=G)return ne;return-1},n2=G=>{for(let ne=Ga.length-1;ne>=0;ne--)if(Ga[ne]<=G)return ne;return-1},Ef=[],Tf=[];for(let G of Ei){let ne=r2(G.release);if(ne===-1)continue;let xe=n2(G.deadline);xe===-1&&(xe=ne);let ve;G.nextDep?xe<ne?(ve="urgente",Tf.push(G.id),xe=ne):xe===ne?ve="urgente":ve="flexible":ve="sin_salida",Ef.push({...G,category:ve,r:ne,d:xe,w:G.peso})}Tf.length&&Wr.push(`Ojo: ${Tf.join(" \xB7 ")} vuelve(n) en fin de semana y sale(n) sin un d\xEDa laborable de por medio. Se programa(n) el laborable m\xE1s cercano, pero puede no dar tiempo.`);let latestCleanedByAc=new Map;Object.entries(Y||{}).forEach(G=>{let d=Ta(G[0]),v=G[1];if(!d||!v||!v.cleaned)return;Object.values(v.cleaned).forEach(id=>{if(!id)return;let prev=latestCleanedByAc.get(id);if(!prev||d>prev)latestCleanedByAc.set(id,d)})});let or=[],dl=[];for(let G of Ef){let lc=latestCleanedByAc.get(G.id);(W.has(G.key)||(lc&&G.release&&lc>=G.release)?dl:or).push(G);}let Vr={},pl=0,mp=!1;if(or.length===0)pl=0;else{let G=q4(or,Ga.length,a);if(G)Vr=G.assign,pl=G.people;else{mp=!0,Vr={},or.forEach((xe,ve)=>Vr[ve]=xe.r);let ne={};or.forEach((xe,ve)=>ne[Vr[ve]]=(ne[Vr[ve]]||0)+xe.w),pl=Math.ceil(Math.max(...Object.values(ne))/a),Wr.push("No se pudo repartir dentro de las ventanas; se muestra cada limpieza el d\xEDa de la vuelta.")}}let Gr={},xp=(G,ne,xe)=>{let ve=Ga[G],De=Ze(ve);Gr[De]||(Gr[De]={date:ve,items:[]}),Gr[De].items.push(Object.assign({key:ne.key,id:ne.id,modelo:ne.modelo,tamano:ne.tamano,peso:ne.peso,category:ne.category,margenDias:ne.margenDias,nextDep:ne.nextDep,arrastrada:ne.arrastrada,forzada:ne.forzada},xe))};or.forEach((G,ne)=>xp(Vr[ne],G,{movedFrom:Vr[ne]!==G.r?Ga[G.r]:null,hecha:!1})),dl.forEach(G=>xp(G.r,G,{movedFrom:null,hecha:!0}));
+
+// Las forzadas son limpiezas reales del plan del día, no solo registros auxiliares.
+// Las añadimos explícitamente a Gr para que aparezcan también en "a limpiar",
+// incluso si el repartidor q4 no las devuelve en su asignación.
+for(let G of He){
+  if(hp.has(G.key)||Hr.has(G.id))continue;
+  let ne=new Date(`${G.fecha}T00:00:00`);
+  if(isNaN(ne)||ne>Pa)continue;
+  let xe=ne<cn?cn:ne;
+  let ve=r2(xe);
+  if(ve===-1)continue;
+  let De=Ga[ve],ka=Ze(De);
+  Gr[ka]||(Gr[ka]={date:De,items:[]});
+  if(!Gr[ka].items.some(qa=>qa.key===G.key)){
+    let qa=e.find(ml=>ml.nombre===G.tamano);
+    Gr[ka].items.push({
+      key:G.key,
+      id:G.id,
+      modelo:"(añadida a mano)",
+      tamano:G.tamano,
+      peso:qa?qa.peso:1,
+      category:"urgente",
+      margenDias:0,
+      nextDep:xe,
+      arrastrada:!1,
+      forzada:!0,
+      movedFrom:null,
+      hecha:!1
+    });
+  }
+}
+let Ff=[];Ii||or.forEach((G,ne)=>{let xe=Ga[Vr[ne]];G.release<=fa&&xe>fa&&Ff.push({key:G.key,id:G.id,tamano:G.tamano,modelo:G.modelo,nextDep:G.nextDep,previstaEl:xe,margenDias:G.margenDias})}),Ff.sort((G,ne)=>(G.nextDep?G.nextDep.getTime():1/0)-(ne.nextDep?ne.nextDep.getTime():1/0)||G.id.localeCompare(ne.id));let Is=new Map,Af=(G,ne)=>{Is.has(G)||Is.set(G,[]),Is.get(G).push(ne)};or.forEach((G,ne)=>Af(G.id,Ga[Vr[ne]])),dl.forEach(G=>Af(G.id,Ga[G.r])),Object.entries(Y||{}).forEach(([G,ne])=>{if(!ne||!ne.cleaned)return;let xe=Ta(G);xe&&Object.values(ne.cleaned).forEach(ve=>{Af(ve,xe)})});for(let[G,ne]of Is.entries()){let xe=Array.from(new Set(ne.map(ve=>ve.getTime()))).map(ve=>new Date(ve));xe.sort((ve,De)=>ve-De),Is.set(G,xe)}let hl=new Map;Object.entries(Y||{}).forEach(([G,ne])=>{if(!ne||!ne.cleaned)return;let xe=Ta(G);xe&&Object.values(ne.cleaned).forEach(ve=>{if(!ve)return;let De=hl.get(ve);(!De||xe>De)&&hl.set(ve,xe)})});for(let G of ge){if(G.dep<fa||G.dep>Pa||Hr.has(G.id))continue;let ne=Ze(G.dep);Gr[ne]||(Gr[ne]={date:G.dep,items:[]}),Gr[ne].salen||(Gr[ne].salen=[]);let xe,ve=null;if(!G.enSede)xe="otra_sede";else{let De=(Is.get(G.id)||[]).filter(ka=>ka<=G.dep);if(De.length){let ka=hl.get(G.id);ka&&ka<=G.dep?ve=ka:ve=De[De.length-1],xe=Ze(ve)===ne?"limpiada":"limpia_hoy"}else xe="ya_lista"}Gr[ne].salen.push({id:G.id,tamano:(Sf(`${U.get(G.id)||""} ${S.get(G.id)||""}`)||{}).nombre||"\u2014",modelo:U.get(G.id)||"",estado:xe,cleanedOn:ve})}re?ke.size&&Wr.push(`${ke.size} AC de otras sedes excluidas del c\xE1lculo (solo se cuenta ${i}).`):Wr.push("No se encontr\xF3 columna de sede (p.ej. \u201CLugar de entrega\u201D), as\xED que se est\xE1n contando TODOS los veh\xEDculos, no solo los de "+i+"."),_f&&Wr.push(`${_f} AC sin modelo ni clase para determinar el tama\xF1o (se contaron con peso 1).`);let Es=or.filter(G=>G.arrastrada).length;Es&&Wr.push(`${Es} limpieza${Es>1?"s":""} ven\xEDa${Es>1?"n":""} pendiente${Es>1?"s":""} de d\xEDas anteriores (sin tildar) y se ${Es>1?"han":"ha"} a\xF1adido a partir de hoy.`),z.data.length||Wr.push("No cargaste las salidas de ESTA semana. Sin ese archivo, un AC que sale y vuelve dentro de esta semana (y vuelve a salir) puede parecer con m\xE1s margen del real.");let Df=Object.values(Gr).sort((G,ne)=>G.date-ne.date);
+
+// Refuerzo final: toda forzada pendiente debe existir en el día visible de Gestión.
+// Esto garantiza que la misma fila que llega a Supabase/Tablet también aparezca en "A limpiar".
+for(let G of He){
+  if(hp.has(G.key)||Hr.has(G.id))continue;
+
+  let ne=String(G.fecha).slice(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(ne))continue;
+
+  let xe=new Date(`${ne}T00:00:00`);
+  if(isNaN(xe)||xe>Pa)continue;
+  if(xe<cn)xe=cn;
+
+  let ve=Ze(xe);
+  let De=Df.find(ka=>Ze(ka.date)===ve);
+  if(!De){
+    De=Df.find(ka=>Ze(ka.date)>=ve);
+  }
+  if(!De)continue;
+
+  De.items=De.items||[];
+  if(!De.items.some(ka=>ka.key===G.key)){
+    let ka=e.find(qa=>qa.nombre===G.tamano);
+    De.items.push({
+      key:G.key,
+      id:G.id,
+      modelo:"(añadida a mano)",
+      tamano:G.tamano,
+      peso:ka?ka.peso:1,
+      category:"urgente",
+      margenDias:0,
+      nextDep:xe,
+      arrastrada:!1,
+      forzada:!0,
+      movedFrom:null,
+      hecha:!1
+    });
+  }
+}
+
+let vp={sin_limpieza:0,limpia_hoy:1,limpiada:2,ya_lista:3,otra_sede:4},Pf=0;for(let G of Df){G.items=G.items||[],G.salen=G.salen||[];let ne=G.items.filter(ve=>!ve.hecha);G.totalPeso=ne.reduce((ve,De)=>ve+De.peso,0),G.personas=Math.ceil(G.totalPeso/a),G.pendientes=ne.length,G.hechas=G.items.filter(ve=>ve.hecha).length,G.urgentes=ne.filter(ve=>ve.category==="urgente").length,G.movidas=ne.filter(ve=>ve.movedFrom).length;let xe={urgente:0,flexible:1,sin_salida:2};G.items.sort((ve,De)=>(ve.hecha?1:0)-(De.hecha?1:0)||xe[ve.category]-xe[De.category]||(ve.margenDias??999)-(De.margenDias??999)),G.salen.sort((ve,De)=>vp[ve.estado]-vp[De.estado]||ve.id.localeCompare(De.id)),G.sinLimpieza=G.salen.filter(ve=>ve.estado==="sin_limpieza").length,Pf+=G.sinLimpieza}Pf&&Wr.push(`${Pf} AC salen sin una limpieza registrada en el plan. Rev\xEDsalas: aparecen en rojo dentro de \u201CSalen\u201D.`),V.current=!0;let Nf=Ze(fa);se(G=>{let ne={...G};for(let xe of Df){if(xe.date<cn)continue;let ve=Ze(xe.date),De=ne[ve]||{cleaned:{}};xe.date>fa?ne[ve]={...De,personal:xe.personas}:De.personalLocked||(ne[ve]={...De,personal:xe.personas,personalLocked:!0})}if(!Ii){let xe=ne[Nf];xe?xe.personalLocked||(ne[Nf]={...xe,personal:xe.personal!=null?xe.personal:0,personalLocked:!0}):ne[Nf]={personal:0,cleaned:{},personalLocked:!0}}return ne}),ae({days:Df,warnings:Wr,recommended:pl,horizonEnd:Pa,totalTareas:Ef.length,pendientes:or.length,hechas:dl.length,adelantables:Ff,cerrado:Ii,movidosPorCierre:Ii?or.filter(G=>G.arrastrada).length:0,schedulingFailed:mp}),Object.keys(If).length>0&&Fe(G=>{let ne=!1,xe={...G};for(let[ve,De]of Object.entries(If))xe[ve]!==De&&(xe[ve]=De,ne=!0);return ne?xe:G})},[z,Z,a,n,i,Sf,W,Fa,He,Hr,e,le,Y]);(0,c.useEffect)(()=>{
+  let syncTodayPlan=async()=>{
+    try{
+      let sb=window.__ACLLAR_SUPABASE;
+      if(!sb||!de||!Array.isArray(de.days))throw new Error("El plan de gestión todavía no está calculado.");
+      let session=(await sb.auth.getSession()).data.session;
+      if(!session?.user)throw new Error("No hay una sesión de Supabase iniciada.");
+
+      let today=Ze(_t());
+      let day=de.days.find(S=>Ze(S.date)===today);
+      let targetDate=today;
+
+      if(!day?.items?.length){
+        let next=de.days.find(S=>Ze(S.date)>today&&Array.isArray(S.items)&&S.items.length>0);
+        if(!next){
+          let msg=`No hay un día operativo posterior a ${hf(_t())} dentro del horizonte.`;
+          window.dispatchEvent(new CustomEvent("acllar-plan-sync",{detail:{fecha:today,total:0,ok:true,warning:msg}}));
+          return {ok:true,fecha:today,total:0,warning:msg};
+        }
+        day=next;
+        targetDate=Ze(next.date);
+      }
+
+      let currentRes=await sb.from("limpieza_plan").select("id,ac_id,estado,tamano").eq("fecha",targetDate);
+      if(currentRes.error)throw new Error("No se pudo leer limpieza_plan: "+currentRes.error.message);
+
+      let current=currentRes.data||[];
+      let byAc=new Map(current.map(S=>[String(S.ac_id),S]));
+      // SYNC-COMPLETED-FROM-CLOUD-V2
+      let cloudCompletedRes=await sb.from("limpiezas").select("ac_id,inicio").eq("estado","terminada");
+      if(cloudCompletedRes.error)throw new Error("No se pudo comprobar las limpiezas terminadas: "+cloudCompletedRes.error.message);
+      let cloudCompletedIds=new Set((cloudCompletedRes.data||[]).filter(S=>S.inicio&&Ze(new Date(S.inicio))===targetDate).map(S=>String(S.ac_id)));
+
+      let wantedMap=new Map();
+
+      for(let S of day.items||[]){
+        wantedMap.set(String(S.id),{
+          ac_id:String(S.id),
+          tamano:S.tamano||"Grande",
+          hecha:!!S.hecha || cloudCompletedIds.has(String(S.id))
+        });
+      }
+
+      for(let S of He||[]){
+        if(String(S.fecha).slice(0,10)!==String(targetDate))continue;
+        wantedMap.set(String(S.id),{
+          ac_id:String(S.id),
+          tamano:S.tamano||"Grande",
+          hecha:false
+        });
+      }
+
+      let wanted=[...wantedMap.values()];
+      let wantedIds=new Set(wanted.map(S=>S.ac_id));
+
+      for(let S of wanted){
+        let existing=byAc.get(S.ac_id);
+        if(existing){
+          // Supabase es la fuente de verdad para el estado recogido por la Tablet.
+          // Nunca rebajamos una limpieza ya terminada/en curso a pendiente.
+          let desiredState=
+            existing.estado==="terminada" ? "terminada" :
+            existing.estado==="en_curso" ? "en_curso" :
+            (S.hecha?"terminada":"pendiente");
+
+          if(existing.estado!==desiredState||existing.tamano!==S.tamano){
+            let up=await sb.from("limpieza_plan").update({
+              tamano:S.tamano,
+              estado:desiredState
+            }).eq("id",existing.id);
+            if(up.error)throw new Error("No se pudo actualizar el AC "+S.ac_id+": "+up.error.message);
+          }
+        }else{
+          let ins=await sb.from("limpieza_plan").insert({
+            fecha:targetDate,
+            ac_id:S.ac_id,
+            tamano:S.tamano,
+            estado:S.hecha?"terminada":"pendiente"
+          });
+          if(ins.error)throw new Error("No se pudo insertar el AC "+S.ac_id+": "+ins.error.message);
+        }
+      }
+
+      // Solo una limpieza realmente registrada por la Tablet puede pasar a facturación/historial.
+      // Una fila terminada de limpieza_plan sin su fila correspondiente en limpiezas
+      // es un estado huérfano y NO debe generar una facturación.
+      let completedRes=await sb.from("limpiezas")
+        .select("ac_id,inicio")
+        .eq("estado","terminada");
+      if(completedRes.error)throw new Error("No se pudo comprobar las limpiezas terminadas: "+completedRes.error.message);
+      let completedIds=new Set((completedRes.data||[])
+        .filter(S=>S.inicio&&Ze(new Date(S.inicio))===targetDate)
+        .map(S=>String(S.ac_id)));
+
+      // Lo que la Tablet marque como terminada debe reflejarse también en
+      // la lista visual de Gestión (W) y en su historial/facturación (Y).
+      // Nunca usamos limpieza_plan.terminada como prueba suficiente.
+      let doneRows=current.filter(S=>S.estado==="terminada"&&completedIds.has(String(S.ac_id)));
+      let doneKeys=[];
+
+      for(let S of doneRows){
+        let normal=(day.items||[]).find(O=>String(O.id)===String(S.ac_id));
+        if(normal?.key){
+          doneKeys.push({
+            key:normal.key,
+            ac_id:String(S.ac_id),
+            tamano:S.tamano||normal.tamano||"Grande"
+          });
+          continue;
+        }
+
+        let forced=(He||[]).find(O=>
+          String(O.fecha).slice(0,10)===String(targetDate) &&
+          String(O.id)===String(S.ac_id)
+        );
+
+        if(forced?.key){
+          doneKeys.push({
+            key:forced.key,
+            ac_id:String(S.ac_id),
+            tamano:S.tamano||forced.tamano||"Grande"
+          });
+        }
+      }
+
+      if(doneKeys.length){
+        H(prev=>{
+          let next=prev;
+          let changed=false;
+
+          for(let S of doneKeys){
+            if(next.get(S.key)!==targetDate){
+              if(!changed)next=new Map(prev);
+              next.set(S.key,targetDate);
+              changed=true;
+            }
+          }
+
+          return changed?next:prev;
+        });
+
+        se(prev=>{
+          let next=prev;
+          let changed=false;
+
+          for(let S of doneKeys){
+            let dia=next[targetDate];
+            let cleaned={...(dia?.cleaned||{})};
+            let tamanoPorAc={...(dia?.tamanoPorAc||{})};
+
+            if(cleaned[S.key]!==S.ac_id || tamanoPorAc[S.ac_id]!==S.tamano){
+              if(!changed)next={...prev};
+              if(!changed)dia={...dia};
+              cleaned[S.key]=S.ac_id;
+              tamanoPorAc[S.ac_id]=S.tamano;
+              next[targetDate]={
+                ...(next[targetDate]||{}),
+                cleaned,
+                tamanoPorAc
+              };
+              changed=true;
+            }
+          }
+
+          return changed?next:prev;
+        });
+      }
+
+      for(let S of current){
+        if(S.estado==="pendiente"&&!wantedIds.has(String(S.ac_id))){
+          let del=await sb.from("limpieza_plan").delete().eq("id",S.id);
+          if(del.error)throw new Error("No se pudo limpiar el plan anterior: "+del.error.message);
+        }
+      }
+
+      let result={
+        ok:true,
+        fecha:targetDate,
+        total:wanted.filter(S=>!S.hecha).length,
+        planned:wanted.length,
+        warning:targetDate!==today?`Hoy (${hf(_t())}) no es operativo. Se sincronizó el próximo día planificado: ${hf(day.date)}.`:null
+      };
+      window.dispatchEvent(new CustomEvent("acllar-plan-sync",{detail:result}));
+      return result;
+    }catch(err){
+      let message=err?.message||String(err);
+      console.warn("No se pudo sincronizar el plan con Supabase:",message);
+      window.dispatchEvent(new CustomEvent("acllar-plan-sync",{detail:{ok:false,error:message}}));
+      return {ok:false,error:message};
+    }
+  };
+  window.__ACLLAR_SYNC_PLAN_TODAY=syncTodayPlan;
+
+  // Sincronización automática: al calcular/cambiar el plan, cada 15 s y ante cambios Realtime.
+  syncTodayPlan();
+
+  let timer=setInterval(()=>{
+    syncTodayPlan();
+  },15000);
+
+  let channel=window.__ACLLAR_SUPABASE
+    ?.channel("acllar-gestion-limpieza-plan")
+    .on(
+      "postgres_changes",
+      {
+        event:"*",
+        schema:"public",
+        table:"limpieza_plan"
+      },
+      ()=>{
+        syncTodayPlan();
+      }
+    )
+    .subscribe();
+
+  return ()=>{
+    clearInterval(timer);
+    if(channel&&window.__ACLLAR_SUPABASE){
+      window.__ACLLAR_SUPABASE.removeChannel(channel);
+    }
+  };
+},[de]);
+let Zg=()=>t(S=>[...S,{nombre:"Nuevo",peso:1}]),e2=S=>t(U=>U.filter((O,Q)=>Q!==S)),pp=(S,U,O)=>t(Q=>Q.map((re,fe)=>fe===S?{...re,[U]:U==="peso"?parseFloat(O)||0:O}:re)),t2=z.headers.length||Z.headers.length;return c.default.createElement("div",{className:"acllar-root min-h-screen"},c.default.createElement("style",null,j4),c.default.createElement("div",{className:"max-w-5xl mx-auto px-5 py-8 md:py-10"},c.default.createElement("header",{className:"flex items-center justify-between mb-8"},c.default.createElement("div",{className:"flex items-center gap-3"},c.default.createElement("div",{className:"w-10 h-10 rounded-lg flex items-center justify-center",style:{background:"var(--ink)"}},c.default.createElement(vi,{className:"w-5 h-5",style:{color:"var(--marigold)"}})),c.default.createElement("div",null,c.default.createElement("div",{className:"display font-bold text-lg leading-none"},"Turnos de limpieza"),c.default.createElement("div",{className:"mono text-[11px] tracking-wide mt-1",style:{color:"var(--muted)"}},"AC\xB7LLAR \xB7 sede ",i," \xB7 planificaci\xF3n semanal")))),c.default.createElement("div",{className:"flex justify-end mb-3"},c.default.createElement("button",{onClick:async()=>{try{let sb=window.__ACLLAR_SUPABASE;if(!sb){alert("No se pudo cargar la conexión con Supabase.");return}let session=(await sb.auth.getSession()).data.session;if(!session?.user){alert("No hay una sesión de Supabase iniciada en este navegador.");return}if(typeof window.__ACLLAR_SYNC_PLAN_TODAY!=="function"){alert("El sincronizador todavía no está listo. Recarga la página e inténtalo de nuevo.");return}let result=await window.__ACLLAR_SYNC_PLAN_TODAY();if(result?.ok){if(result.warning)alert(result.warning);else alert(`Plan de hoy sincronizado con la tablet. ${result.total||0} vehículos pendientes.`)}else alert("No se pudo sincronizar: "+(result?.error||"error desconocido"))}catch(err){alert("No se pudo sincronizar: "+(err?.message||err))}},className:"text-xs font-semibold px-3 py-2 rounded-lg",style:{background:"var(--ink)",color:"#fff"}},"☁️ Sincronizar plan de hoy con tablet")),c.default.createElement("p",{className:"text-sm mb-7 max-w-2xl leading-relaxed",style:{color:"var(--muted)"}},"Una AC se ensucia cuando ",c.default.createElement("strong",{style:{color:"var(--text)"}},"vuelve"),", y hay que tenerla lista para su"," ",c.default.createElement("strong",{style:{color:"var(--text)"}},"siguiente salida"),". Las limpiezas con margen se reparten para pedir el m\xEDnimo de gente fija sin que ning\xFAn d\xEDa se quede corto."),c.default.createElement("div",{className:"rounded-xl mb-5 overflow-hidden",style:{background:"var(--card)",border:"1px solid var(--line)"}},c.default.createElement("button",{onClick:()=>u(S=>!S),className:"w-full flex items-center justify-between px-4 py-3 hover:bg-black/[0.02]"},c.default.createElement("div",{className:"flex items-center gap-2"},c.default.createElement(Ls,{className:"w-4 h-4",style:{color:"var(--muted)"}}),c.default.createElement("span",{className:"text-sm font-medium"},"Ajustes de c\xE1lculo"),c.default.createElement("span",{className:"mono text-[11px]",style:{color:"var(--muted)"}},i," \xB7 ",a," AC/persona \xB7 ",n," d\xEDas")),l?c.default.createElement(Sr,{className:"w-4 h-4",style:{color:"var(--muted)"}}):c.default.createElement(Lr,{className:"w-4 h-4",style:{color:"var(--muted)"}})),l&&c.default.createElement("div",{className:"px-4 pb-4 pt-1 acllar-fade",style:{borderTop:"1px solid var(--line)"}},c.default.createElement("div",{className:"flex flex-wrap items-center gap-x-8 gap-y-3 mb-5 mt-3"},c.default.createElement("div",{className:"flex items-center gap-2"},c.default.createElement("label",{className:"text-sm",style:{color:"var(--muted)"}},"AC que limpia una persona al d\xEDa"),c.default.createElement("input",{type:"number",step:"0.1",value:a,onChange:S=>r(parseFloat(S.target.value)||0),className:"mono w-20 px-2 py-1 rounded-md text-sm bg-white",style:{border:"1px solid var(--line)"}})),c.default.createElement("div",{className:"flex items-center gap-2"},c.default.createElement("label",{className:"text-sm",style:{color:"var(--muted)"}},"Planificar los pr\xF3ximos (d\xEDas)"),c.default.createElement("input",{type:"number",value:n,onChange:S=>s(parseInt(S.target.value)||0),className:"mono w-20 px-2 py-1 rounded-md text-sm bg-white",style:{border:"1px solid var(--line)"}})),c.default.createElement("div",{className:"flex items-center gap-2"},c.default.createElement("label",{className:"text-sm",style:{color:"var(--muted)"}},"Sede"),dp.length>0?c.default.createElement("select",{value:i,onChange:S=>o(S.target.value),className:"px-2 py-1 rounded-md text-sm bg-white",style:{border:"1px solid var(--line)"}},dp.map(S=>c.default.createElement("option",{key:S,value:S},S))):c.default.createElement("input",{value:i,onChange:S=>o(S.target.value),className:"w-28 px-2 py-1 rounded-md text-sm bg-white",style:{border:"1px solid var(--line)"}}))),c.default.createElement("div",{className:"text-sm mb-2",style:{color:"var(--muted)"}},"Cu\xE1nto trabajo da cada tama\xF1o (1 = referencia). El tama\xF1o se detecta por el modelo: Tessoro 440/430, Yrteo y campervans son medianos; el resto, grandes. Sube el peso de \u201CGrande\u201D si de verdad lleva m\xE1s tiempo."),c.default.createElement("div",{className:"space-y-2"},e.map((S,U)=>c.default.createElement("div",{key:U,className:"flex items-center gap-2"},c.default.createElement("input",{value:S.nombre,onChange:O=>pp(U,"nombre",O.target.value),className:"flex-1 px-2 py-1 rounded-md text-sm bg-white",style:{border:"1px solid var(--line)"}}),c.default.createElement("input",{type:"number",step:"0.1",value:S.peso,onChange:O=>pp(U,"peso",O.target.value),className:"mono w-20 px-2 py-1 rounded-md text-sm bg-white",style:{border:"1px solid var(--line)"}}),c.default.createElement("button",{onClick:()=>e2(U),className:"p-1.5 rounded-md hover:bg-black/5",style:{color:"var(--clay)"},"aria-label":"Quitar clase"},c.default.createElement(el,{className:"w-3.5 h-3.5"})))),c.default.createElement("button",{onClick:Zg,className:"flex items-center gap-1 text-xs font-medium mt-1 hover:underline",style:{color:"var(--ink)"}},c.default.createElement(Rr,{className:"w-3.5 h-3.5"})," A\xF1adir clase")),c.default.createElement("p",{className:"text-xs mt-3",style:{color:"var(--muted)"}},"Se guarda para la pr\xF3xima semana."))),c.default.createElement("div",{className:"rounded-xl p-4 mb-4",style:{background:_s?"#E7F3EF":"var(--card)",border:`1px solid ${_s?"var(--teal)":"var(--line)"}`}},c.default.createElement("div",{className:"flex flex-wrap items-center gap-3"},c.default.createElement("div",{className:"flex-1 min-w-[220px]"},c.default.createElement("div",{className:"text-sm font-medium flex items-center gap-2"},_s&&c.default.createElement("span",{className:"inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full",style:{color:"#fff",background:"var(--teal)"}},c.default.createElement("span",{className:"w-1.5 h-1.5 rounded-full bg-white inline-block"})," Vigilando"),"Carpeta autom\xE1tica"),c.default.createElement("p",{className:"text-xs mt-0.5",style:{color:"var(--muted)"}},"Autoriza la carpeta una vez. La app la revisa cada 30 s y, cuando Cowork actualiza los Excel (",c.default.createElement("span",{className:"mono"},"EN ALQUILER"),", ",c.default.createElement("span",{className:"mono"},"ESTA SEMANA"),", ",c.default.createElement("span",{className:"mono"},"SEMANA PROXIMA"),"), recarga y recalcula sola.")),Qg?c.default.createElement("div",{className:"flex items-center gap-2"},c.default.createElement("button",{onClick:Kg,className:"display flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-transform hover:-translate-y-0.5",style:{background:"var(--ink)",color:"#fff"}},c.default.createElement(gi,{className:"w-4 h-4"})," ",_s?"Cambiar carpeta":"Vigilar carpeta"),_s&&c.default.createElement(c.default.Fragment,null,c.default.createElement("button",{onClick:Cf,className:"text-xs px-3 py-2 rounded-lg font-medium",style:{background:"var(--paper)",color:"var(--ink)",border:"1px solid var(--line)"},title:"Revisar la carpeta ahora mismo"},"Revisar ya"),c.default.createElement("button",{onClick:Yg,className:"text-xs px-3 py-2 rounded-lg font-medium",style:{background:"var(--paper)",color:"var(--clay)",border:"1px solid var(--line)"}},"Detener"))):c.default.createElement("label",{className:"display flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg cursor-pointer transition-transform hover:-translate-y-0.5",style:{background:"var(--ink)",color:"#fff"}},c.default.createElement(gi,{className:"w-4 h-4"})," Elegir los 2 archivos",c.default.createElement("input",{type:"file",accept:".xlsx,.xls,.csv",multiple:!0,onChange:Jg,className:"hidden"}))),(lp||ip)&&c.default.createElement("div",{className:"mt-3 text-xs rounded-lg px-3 py-2",style:{background:"rgba(255,255,255,0.7)",color:"var(--ink)"}},lp||ip)),c.default.createElement("div",{className:"flex gap-1 mb-4 rounded-xl p-1",style:{background:"var(--paper)",width:"fit-content"}},[{id:"calculo",label:"C\xE1lculo"},{id:"facturacion",label:"Facturaci\xF3n"},{id:"estadisticas",label:"Estad\xEDsticas"}].map(S=>c.default.createElement("button",{key:S.id,onClick:()=>yf(S.id),className:"px-4 py-1.5 rounded-lg text-sm font-medium transition-all",style:{background:Vn===S.id?"var(--ink)":"transparent",color:Vn===S.id?"#fff":"var(--muted)"}},S.label))),c.default.createElement("div",{className:"mb-4 rounded-xl px-4 py-3",style:{background:activeCleanings.length?"#E8F7F0":"var(--paper)",border:`1px solid ${activeCleanings.length?"#B8E5D1":"var(--line)"}`}},c.default.createElement("span",{className:"text-sm font-semibold",style:{color:activeCleanings.length?"#0F766E":"var(--muted)"}},activeCleanings.length?`🟢 Limpiezas en curso: ${activeCleanings.map(S=>S.ac_id).join(" · ")}`:"⚪ Ninguna limpieza en curso")),c.default.createElement("div",{style:{display:Vn==="calculo"?"block":"none"}},c.default.createElement("div",{className:"grid sm:grid-cols-2 gap-3 mb-5"},c.default.createElement(Bg,{step:1,required:!0,title:"Reservas 14 d\xEDas",hint:"Salidas y vueltas previstas para los pr\xF3ximos 14 d\xEDas.",fileName:z.name,onFile:Gg,headers:z.headers,mapping:z.mapping,setMapping:S=>R(U=>({...U,mapping:S(U.mapping)})),rowCount:z.data.length,fields:[["id","Veh\xEDculo"],["entrega","Salida (entrega)"],["devolucion","Vuelta (devoluci\xF3n)"],["estatus","Estatus"],["sede","Sede (lugar)"]]}),c.default.createElement(Bg,{step:2,required:!0,title:"En alquiler ahora",hint:"Lo que est\xE1 fuera aho
