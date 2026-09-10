@@ -1,0 +1,40 @@
+name: Fix exclusion filter
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-exclusion-absolute.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch exclusion checks
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old=s
+          replacements={
+            'Hr.has(G.id)':'Hr.has(String(G.id).trim().toUpperCase())',
+            'Hr.has(G.key)':'Hr.has(String(G.key).trim().toUpperCase())',
+            'Hr.has(S.id)':'Hr.has(String(S.id).trim().toUpperCase())',
+            'Hr.has(S.key)':'Hr.has(String(S.key).trim().toUpperCase())',
+          }
+          for a,b in replacements.items(): s=s.replace(a,b)
+          # Also normalize exclusion ids at construction when the recognizable map expression is present.
+          s=s.replace("new Set(He.map(G=>G.id))", "new Set(He.map(G=>String(G.id).trim().toUpperCase()))")
+          if s==old:
+            print('No textual replacement made')
+          else:
+            p.write_text(s,encoding='utf-8')
+            print('Patched exclusion checks')
+      - name: Commit
+        run: |
+          git config user.name 'github-actions'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Fix absolute exclusion matching' || exit 0
+          git push
