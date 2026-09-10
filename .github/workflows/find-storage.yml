@@ -1,0 +1,33 @@
+name: Find storage access
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  x:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          needles=['window.storage.get','window.storage.set','acllar-snapshots-alquiler','let le=']
+          out=[]
+          for needle in needles:
+            start=0
+            while True:
+              j=s.find(needle,start)
+              if j<0: break
+              out.append('NEEDLE '+needle+'\n'+s[max(0,j-2500):j+5000])
+              start=j+1
+          Path('storage.txt').write_text('\n\n---MATCH---\n\n'.join(out),encoding='utf-8')
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add storage.txt
+          git commit -m 'debug storage access' || exit 0
+          git push
