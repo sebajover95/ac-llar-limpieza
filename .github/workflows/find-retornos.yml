@@ -1,10 +1,13 @@
 name: Find retornos variable
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 permissions:
   contents: write
 jobs:
   x:
+    if: contains(github.event.head_commit.message, 'debug retornos variable') == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
