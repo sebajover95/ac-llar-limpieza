@@ -1,0 +1,29 @@
+name: Find retornos variable
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  x:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract
+        shell: python
+        run: |
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          needle='limpieza-retornos-manuales'
+          out=[]; start=0
+          while True:
+            j=s.find(needle,start)
+            if j<0: break
+            out.append(s[max(0,j-3000):j+5000]); start=j+1
+          Path('retornos.txt').write_text('\n\n---MATCH---\n\n'.join(out),encoding='utf-8')
+      - name: Commit
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add retornos.txt
+          git commit -m 'debug retornos variable' || exit 0
+          git push
