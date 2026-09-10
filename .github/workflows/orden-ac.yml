@@ -26,7 +26,7 @@ jobs:
           (()=>{
             const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
             const sb=()=>window.__ACLLAR_SUPABASE;
-            const rowFor=id=>[...document.querySelectorAll('.mono.text-base.font-bold')].find(x=>x.textContent.trim()===String(id))?.closest('div.flex.items-center.gap-2.flex-wrap.py-1\\.5');
+            const rowFor=id=>[...document.querySelectorAll('.mono.text-base.font-bold')].find(x=>x.textContent.trim()===String(id))?.closest('div.flex.items-center.gap-2.flex-wrap');
             async function load(){const c=sb();if(!c)return [];const {data,error}=await c.from('limpieza_plan').select('id,ac_id,prioridad,estado,fecha').eq('fecha',today()).neq('estado','terminada').order('prioridad',{ascending:true});if(error){console.warn('Orden AC:',error.message);return []}return data||[]}
             async function normalize(rows){const c=sb();if(!c)return rows;let n=0,changed=false;const ordered=[...rows].sort((a,b)=>{const pa=a.prioridad==null?1e9:Number(a.prioridad),pb=b.prioridad==null?1e9:Number(b.prioridad);return pa-pb||String(a.ac_id).localeCompare(String(b.ac_id),undefined,{numeric:true})});for(const r of ordered){if(r.prioridad==null){const {error}=await c.from('limpieza_plan').update({prioridad:n}).eq('id',r.id);if(!error){r.prioridad=n;changed=true}}n++}return changed?await load():rows}
             function reorder(rows){const ordered=[...rows].sort((a,b)=>(a.prioridad??1e9)-(b.prioridad??1e9));const nodes=ordered.map(r=>rowFor(r.ac_id)).filter(Boolean);if(!nodes.length)return;const parent=nodes[0].parentElement;if(!parent)return;nodes.forEach(n=>parent.appendChild(n))}
