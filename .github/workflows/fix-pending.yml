@@ -11,15 +11,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch same-day returns
+      - name: Repair pending filter syntax
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html');s=p.read_text(encoding='utf-8')
-          old='let ve=df(xe),De=Ta(ne[G.mapping.entrega]),ka=G.mapping.devolucion?Ta(ne[G.mapping.devolucion]):null;Qe(ve,De),It(ve,De,ka)}})(z);'
-          new='let ve=df(xe),De=Ta(ne[G.mapping.entrega]),ka=G.mapping.devolucion?Ta(ne[G.mapping.devolucion]):null;let mr=ve&&manualReturns[ve]?Ta(manualReturns[ve]):null;if(mr)ka=mr;Qe(ve,De);if(ve&&ka){if(ka===_t()&&!mr)continue;It(ve,De,ka)}})(z);'
-          if old not in s: raise SystemExit('same-day reservation return marker not found')
-          s=s.replace(old,new,1);p.write_text(s,encoding='utf-8');print('patched')
+          bad='let ve=df(xe),De=Ta(ne[G.mapping.entrega]),ka=G.mapping.devolucion?Ta(ne[G.mapping.devolucion]):null;let mr=ve&&manualReturns[ve]?Ta(manualReturns[ve]):null;if(mr)ka=mr;Qe(ve,De);if(ve&&ka){if(ka===_t()&&!mr)continue;It(ve,De,ka)}})(z);'
+          good='let ve=df(xe),De=Ta(ne[G.mapping.entrega]),ka=G.mapping.devolucion?Ta(ne[G.mapping.devolucion]):null;let mr=ve&&manualReturns[ve]?Ta(manualReturns[ve]):null;if(mr)ka=mr;Qe(ve,De);if(ve&&ka){if(ka===_t()&&!mr)continue;It(ve,De,ka)}}})(z);'
+          if bad in s:
+              s=s.replace(bad,good,1)
+          else:
+              old='let ve=df(xe),De=Ta(ne[G.mapping.entrega]),ka=G.mapping.devolucion?Ta(ne[G.mapping.devolucion]):null;Qe(ve,De),It(ve,De,ka)}})(z);'
+              new=good
+              if old not in s: raise SystemExit('pending reservation marker not found')
+              s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+          print('patched')
           PY
       - name: Commit
         run: |
@@ -27,6 +34,6 @@ jobs:
           git config user.email github-actions@github.com
           git add index.html
           git diff --cached --quiet && exit 0
-          git commit -m "Fix same-day actual return filter [AUTO-ARCH-REAL]"
+          git commit -m "Repair pending filter syntax [AUTO-ARCH-REAL]"
           git pull --rebase origin main
           git push origin HEAD:main
