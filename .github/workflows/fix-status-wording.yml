@@ -1,0 +1,28 @@
+name: Fix status labels wording
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[auto-status2]') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('orden-ac.js'); s=p.read_text(encoding='utf-8')
+          old="if(/Se limpia hoy/i.test(z))n.textContent='Limpia desde '+d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4);"
+          new="if(/Se limpia hoy/i.test(z))n.textContent=d?('Limpia desde '+d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4)):'Pendiente de limpieza';"
+          if old not in s: raise SystemExit('target not found')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add orden-ac.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'Fix SALEN HOY wording [auto-status2]'
+          git push
