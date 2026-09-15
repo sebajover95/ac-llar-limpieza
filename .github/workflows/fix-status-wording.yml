@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 jobs:
   patch:
-    if: ${{ !contains(github.event.head_commit.message, '[auto-status2]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[auto-status3]') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -14,15 +14,16 @@ jobs:
       - run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p=Path('orden-ac.js'); s=p.read_text(encoding='utf-8')
-          old="if(/Se limpia hoy/i.test(z))n.textContent='Limpia desde '+d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4);"
-          new="if(/Se limpia hoy/i.test(z))n.textContent=d?('Limpia desde '+d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4)):'Pendiente de limpieza';"
-          if old not in s: raise SystemExit('target not found')
-          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          new="""async function patchCleanLabels(){const done=latestCleaned(await appData(cleanKey));if(!Object.keys(done).length)return;const all=[...document.querySelectorAll('*')],heads=all.filter(e=>visible(e)&&/^SALEN HOY\\s*\\(/i.test((e.textContent||'').trim())).sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top);for(const e of all){if(!visible(e)||e.children.length)continue;const t=(e.textContent||'').trim();if(!/^(Se limpia hoy|Pendiente de limpieza)$/i.test(t))continue;const r=e.getBoundingClientRect();let h=null;for(const x of heads){const xr=x.getBoundingClientRect();if(xr.top<r.top)h=x;else break}if(!h)continue;let node=e.parentElement,ac=null;for(let n=0;n<8&&node;n++,node=node.parentElement){const m=(node.textContent||'').match(/\\bAC-\\d{3}[A-Z]?\\b/i);if(m){ac=m[0].toUpperCase();break}}if(!ac||!done[ac])continue;const release=dateOfSection(h);if(done[ac]<release)e.textContent='Se limpia hoy';else e.textContent=cleanLabel(done[ac])}}\n"""
+          s2=re.sub(r'async function patchCleanLabels\(\)\{.*?\}\n(?=async function render)',new,s,count=1,flags=re.S)
+          if s2==s: raise SystemExit('patchCleanLabels target not found')
+          p.write_text(s2,encoding='utf-8')
           PY
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add orden-ac.js
           git diff --cached --quiet && exit 0
-          git commit -m 'Fix SALEN HOY wording [auto-status2]'
+          git commit -m 'Fix SALEN HOY return-date logic [auto-status3]'
           git push
