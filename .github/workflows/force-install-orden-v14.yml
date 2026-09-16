@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install order script and fix Tablet pause persistence
+      - name: Reparar Tablet y persistencia de pausa
         shell: python
         run: |
           from pathlib import Path
@@ -20,48 +20,40 @@ jobs:
           for name in ['index.html', 'tablet/index.html']:
               p = Path(name)
               s = p.read_text(encoding='utf-8')
-              s = re.sub(r'<script[^>]+src=["\']/ac-llar-limpieza/orden-ac\.js[^>]*></script>', '', s)
+              s = re.sub(r'<script[^>]+src=["\\\']/ac-llar-limpieza/orden-ac\\.js[^>]*></script>', '', s)
               pos = s.rfind('</body>')
               if pos < 0:
-                  raise SystemExit(f'No se encontró </body> en {name}')
+                  raise SystemExit(f'No se encontro </body> en {name}')
               s = s[:pos] + tag + '\n' + s[pos:]
               p.write_text(s, encoding='utf-8')
 
           p = Path('tablet/index.html')
           s = p.read_text(encoding='utf-8')
 
-          marker = 'let C=j=>{l(j),r("terminar")};'
-          handlers = '''let C=j=>{l(j),r("terminar")};
-          let pauseSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="en_curso"||local.pausadaAt)return;let now=Date.now();let accumulated=Math.max(0,Number(local.tiempoAcumuladoSegundos||0)+Math.max(0,now-Number(local.tramoInicioAt||local.inicio||now))/1000);if(!local.dbId){alert("No se pudo pausar la limpieza: falta el identificador de Supabase.");return}let {error}=await supabaseClient.rpc("pausar_limpieza",{p_limpieza_id:local.dbId,p_tiempo_acumulado_segundos:Math.round(accumulated),p_pausada_at:new Date(now).toISOString()});if(error){alert("No se pudo pausar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"pausada",pausadaAt:now,tiempoAcumuladoSegundos:Math.round(accumulated),tramoInicioAt:null}:xe))};
+          # El fallo de pantalla en blanco era una declaracion duplicada de C.
+          c_decl = 'let C=j=>{l(j),r("terminar")};'
+          s = re.sub(r'(?:let C=j=>\{l\(j\),r\("terminar"\)\};\s*)+', c_decl + '\n', s)
+          if c_decl not in s:
+              marker = 'let C=j=>{l(j),r("terminar")};'
+              raise SystemExit('No se encontro el handler C')
+
+          handlers = '''let pauseSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="en_curso"||local.pausadaAt)return;let now=Date.now();let accumulated=Math.max(0,Number(local.tiempoAcumuladoSegundos||0)+Math.max(0,now-Number(local.tramoInicioAt||local.inicio||now))/1000);if(!local.dbId){alert("No se pudo pausar la limpieza: falta el identificador de Supabase.");return}let {error}=await supabaseClient.rpc("pausar_limpieza",{p_limpieza_id:local.dbId,p_tiempo_acumulado_segundos:Math.round(accumulated),p_pausada_at:new Date(now).toISOString()});if(error){alert("No se pudo pausar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"pausada",pausadaAt:now,tiempoAcumuladoSegundos:Math.round(accumulated),tramoInicioAt:null}:xe))};
           let resumeSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="pausada")return;let now=Date.now();if(!local.dbId){alert("No se pudo retomar la limpieza: falta el identificador de Supabase.");return}let {error}=await supabaseClient.rpc("retomar_limpieza",{p_limpieza_id:local.dbId,p_tramo_inicio_at:new Date(now).toISOString()});if(error){alert("No se pudo retomar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"en_curso",tramoInicioAt:now,pausadaAt:null}:xe))};'''
 
-          if 'let pauseSession=async id=>' not in s:
-              if marker not in s:
-                  raise SystemExit('No se encontró el punto de inserción de los handlers de pausa')
-              s = s.replace(marker, handlers, 1)
-          else:
-              pattern = r'let pauseSession=async id=>.*?let resumeSession=async id=>.*?};'
-              s, count = re.subn(pattern, handlers, s, count=1, flags=re.S)
-              if count != 1:
-                  raise SystemExit('No se pudo reemplazar el bloque de pausa')
+          # Elimina cualquier bloque previo y lo reconstruye una sola vez.
+          s = re.sub(r'let pauseSession=async id=>.*?let resumeSession=async id=>.*?};\s*', '', s, count=1, flags=re.S)
+          s = s.replace(c_decl, c_decl + '\n' + handlers, 1)
 
-          # Una limpieza PAUSADA sigue dentro de EN CURSO y no debe desaparecer.
-          active_filters = [
-              'let d=(0,B.useMemo)(()=>v.filter(j=>j.estado==="en_curso"),[v]),',
-              'd=(0,B.useMemo)(()=>v.filter(j=>j.estado==="en_curso"),[v]),'
-          ]
-          paused_filter = 'd=(0,B.useMemo)(()=>v.filter(j=>j.estado==="en_curso"||j.estado==="pausada"),[v]),'
-          for old in active_filters:
-              if old in s:
-                  s = s.replace(old, paused_filter, 1)
-                  break
-
-          # Mantener la misma clave visual al pasar de EN CURSO a PAUSADA evita que React la quite y la vuelva a crear.
+          # Una limpieza pausada sigue visible en la pantalla principal.
           s = s.replace(
-              'id:u.estado==="pausada"?`P|${u.id}`:`S|${u.id}`',
-              'id:`S|${u.id}`',
-              1
+              'let d=(0,B.useMemo)(()=>v.filter(j=>j.estado==="en_curso"),[v]),',
+              'let d=(0,B.useMemo)(()=>v.filter(j=>j.estado==="en_curso"||j.estado==="pausada"),[v]),', 1
           )
+          s = s.replace(
+              'd=(0,B.useMemo)(()=>v.filter(j=>j.estado==="en_curso"),[v]),',
+              'd=(0,B.useMemo)(()=>v.filter(j=>j.estado==="en_curso"||j.estado==="pausada"),[v]),', 1
+          )
+          s = s.replace('id:u.estado==="pausada"?`P|${u.id}`:`S|${u.id}`', 'id:`S|${u.id}`', 1)
 
           replacements = [
             ('onTerminar:C,onCancelar:I}),e==="elegir"', 'onTerminar:C,onPausar:pauseSession,onRetomar:resumeSession,onCancelar:I}),e==="elegir"'),
@@ -72,22 +64,22 @@ jobs:
               if old in s:
                   s = s.replace(old, new, 1)
 
-          if 'function S3(' not in s or 'PAUSADA desde' not in s or 'RETOMAR' not in s:
-              raise SystemExit('La tarjeta de sesión no contiene el comportamiento de pausa esperado')
-
-          p.write_text(s, encoding='utf-8')
-
-          final = p.read_text(encoding='utf-8')
+          # No puede haber mas de una declaracion de los handlers.
+          if s.count('let C=j=>{l(j),r("terminar")};') != 1:
+              raise SystemExit('Error: handler C duplicado')
+          if s.count('let pauseSession=async id=>') != 1 or s.count('let resumeSession=async id=>') != 1:
+              raise SystemExit('Error: handlers de pausa duplicados o ausentes')
           required = [
               'pausar_limpieza','retomar_limpieza',
               'estado:"pausada",pausadaAt:now,tiempoAcumuladoSegundos',
               'onPausar:()=>pause(o.id)','onRetomar:()=>resume(o.id)',
               'PAUSAR','RETOMAR','pausadaAt'
           ]
-          missing = [x for x in required if x not in final]
+          missing = [x for x in required if x not in s]
           if missing:
               raise SystemExit('Faltan elementos de pausa: '+', '.join(missing))
-          print('OK: PAUSAR persiste, sigue visible y congela el contador')
+          p.write_text(s, encoding='utf-8')
+          print('OK: Tablet sin duplicados y pausa persistente')
 
       - name: Commit
         shell: bash
@@ -96,5 +88,5 @@ jobs:
           git config user.email "chatgpt@users.noreply.github.com"
           git add index.html tablet/index.html
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Corregir persistencia de pausa en Tablet [orden-v14]"
+          git commit -m "Corregir pantalla en blanco y pausa Tablet [orden-v14]"
           git push
