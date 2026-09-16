@@ -46,10 +46,15 @@ jobs:
                   raise SystemExit('No se pudo reemplazar el bloque de pausa')
 
           # Una limpieza PAUSADA sigue dentro de EN CURSO y no debe desaparecer.
-          active_filter = 'let d=(0,B.useMemo)(()=>v.filter(j=>j.estado==="en_curso"),[v]),'
-          paused_filter = 'let d=(0,B.useMemo)(()=>v.filter(j=>j.estado==="en_curso"||j.estado==="pausada"),[v]),'
-          if active_filter in s:
-              s = s.replace(active_filter, paused_filter, 1)
+          active_filters = [
+              'let d=(0,B.useMemo)(()=>v.filter(j=>j.estado==="en_curso"),[v]),',
+              'd=(0,B.useMemo)(()=>v.filter(j=>j.estado==="en_curso"),[v]),'
+          ]
+          paused_filter = 'd=(0,B.useMemo)(()=>v.filter(j=>j.estado==="en_curso"||j.estado==="pausada"),[v]),'
+          for old in active_filters:
+              if old in s:
+                  s = s.replace(old, paused_filter, 1)
+                  break
 
           # Mantener la misma clave visual al pasar de EN CURSO a PAUSADA evita que React la quite y la vuelva a crear.
           s = s.replace(
@@ -67,7 +72,6 @@ jobs:
               if old in s:
                   s = s.replace(old, new, 1)
 
-          # La tarjeta S3 ya congela el contador usando pausadaAt; solo comprobamos que exista.
           if 'function S3(' not in s or 'PAUSADA desde' not in s or 'RETOMAR' not in s:
               raise SystemExit('La tarjeta de sesión no contiene el comportamiento de pausa esperado')
 
