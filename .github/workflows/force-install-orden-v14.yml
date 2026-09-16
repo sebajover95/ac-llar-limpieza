@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install order script and restore Tablet pause
+      - name: Install order script and fix Tablet pause persistence
         shell: python
         run: |
           from pathlib import Path
@@ -29,49 +29,66 @@ jobs:
 
           p = Path('tablet/index.html')
           s = p.read_text(encoding='utf-8')
+
           marker = 'let C=j=>{l(j),r("terminar")};'
           handlers = '''let C=j=>{l(j),r("terminar")};
-          let pauseSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="en_curso"||local.pausadaAt)return;let now=Date.now();let accumulated=Math.max(0,Number(local.tiempoAcumuladoSegundos||0)+Math.max(0,now-Number(local.tramoInicioAt||local.inicio||now))/1000);if(!local.dbId){alert("No se pudo pausar la limpieza: falta el identificador de Supabase.");return}let {error}=await supabaseClient.rpc("pausar_limpieza",{p_limpieza_id:local.dbId,p_tiempo_acumulado_segundos:Math.round(accumulated),p_pausada_at:new Date(now).toISOString()});if(error){alert("No se pudo pausar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"en_curso",pausadaAt:now,tiempoAcumuladoSegundos:Math.round(accumulated),tramoInicioAt:null}:xe))};
-          let resumeSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||!local.pausadaAt)return;let now=Date.now();if(!local.dbId){alert("No se pudo retomar la limpieza: falta el identificador de Supabase.");return}let {error}=await supabaseClient.rpc("retomar_limpieza",{p_limpieza_id:local.dbId,p_tramo_inicio_at:new Date(now).toISOString()});if(error){alert("No se pudo retomar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"en_curso",tramoInicioAt:now,pausadaAt:null}:xe))};'''
+          let pauseSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="en_curso"||local.pausadaAt)return;let now=Date.now();let accumulated=Math.max(0,Number(local.tiempoAcumuladoSegundos||0)+Math.max(0,now-Number(local.tramoInicioAt||local.inicio||now))/1000);if(!local.dbId){alert("No se pudo pausar la limpieza: falta el identificador de Supabase.");return}let {error}=await supabaseClient.rpc("pausar_limpieza",{p_limpieza_id:local.dbId,p_tiempo_acumulado_segundos:Math.round(accumulated),p_pausada_at:new Date(now).toISOString()});if(error){alert("No se pudo pausar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"pausada",pausadaAt:now,tiempoAcumuladoSegundos:Math.round(accumulated),tramoInicioAt:null}:xe))};
+          let resumeSession=async id=>{let local=t.find(xe=>xe.id===id);if(!local||local.estado!=="pausada")return;let now=Date.now();if(!local.dbId){alert("No se pudo retomar la limpieza: falta el identificador de Supabase.");return}let {error}=await supabaseClient.rpc("retomar_limpieza",{p_limpieza_id:local.dbId,p_tramo_inicio_at:new Date(now).toISOString()});if(error){alert("No se pudo retomar la limpieza: "+error.message);return}n(J=>J.map(xe=>xe.id===id?{...xe,estado:"en_curso",tramoInicioAt:now,pausadaAt:null}:xe))};'''
+
           if 'let pauseSession=async id=>' not in s:
               if marker not in s:
                   raise SystemExit('No se encontró el punto de inserción de los handlers de pausa')
               s = s.replace(marker, handlers, 1)
           else:
-              old_pause='if(!local||local.estado!=="en_curso")return;'
-              new_pause='if(!local||local.estado!=="en_curso"||local.pausadaAt)return;'
-              old_resume='if(!local||local.estado!=="pausada")return;'
-              new_resume='if(!local||!local.pausadaAt)return;'
-              old_update='{...xe,estado:"pausada",tiempoAcumuladoSegundos:Math.round(accumulated),pausadaAt:now,tramoInicioAt:null}'
-              new_update='{...xe,estado:"en_curso",pausadaAt:now,tiempoAcumuladoSegundos:Math.round(accumulated),tramoInicioAt:null}'
-              if old_pause not in s or old_resume not in s or old_update not in s:
-                  raise SystemExit('No se encontró el handler antiguo de pausa para corregirlo')
-              s=s.replace(old_pause,new_pause,1)
-              s=s.replace(old_resume,new_resume,1)
-              s=s.replace(old_update,new_update,1)
+              pattern = r'let pauseSession=async id=>.*?let resumeSession=async id=>.*?};'
+              s, count = re.subn(pattern, handlers, s, count=1, flags=re.S)
+              if count != 1:
+                  raise SystemExit('No se pudo reemplazar el bloque de pausa')
+
+          # La pausa debe seguir perteneciendo a la lista EN CURSO.
+          s = s.replace(
+              'let d=(0,B.useMemo)(()=>v.filter(j=>j.estado==="en_curso"),[v]),',
+              'let d=(0,B.useMemo)(()=>v.filter(j=>j.estado==="en_curso"||j.estado==="pausada"),[v]),',
+              1
+          )
+
+          # El id visual debe ser estable al pasar de EN CURSO a PAUSADA.
+          s = s.replace(
+              'id:u.estado==="pausada"?`P|${u.id}`:`S|${u.id}`',
+              'id:`S|${u.id}`',
+              1
+          )
 
           replacements = [
             ('onTerminar:C,onCancelar:I}),e==="elegir"', 'onTerminar:C,onPausar:pauseSession,onRetomar:resumeSession,onCancelar:I}),e==="elegir"'),
             ('function E3({enCurso:e,terminadas:r,tick:t,necesitaCargar:n,onEmpezar:a,onCargarPlan:i,onTerminar:s,onCancelar:l}){', 'function E3({enCurso:e,terminadas:r,tick:t,necesitaCargar:n,onEmpezar:a,onCargarPlan:i,onTerminar:s,onPausar:pause,onRetomar:resume,onCancelar:l}){'),
             ('onTerminar:()=>s(o.id),onCancelar:()=>l(o.id)', 'onTerminar:()=>s(o.id),onPausar:()=>pause(o.id),onRetomar:()=>resume(o.id),onCancelar:()=>l(o.id)')
           ]
-          for old,new in replacements:
+          for old, new in replacements:
               if old in s:
-                  s=s.replace(old,new,1)
+                  s = s.replace(old, new, 1)
 
-          pattern=r'function S3\(\{sesion:e,tick:r,onTerminar:t,onCancelar:n\}\)\{.*?\}function T3'
-          replacement='''function S3({sesion:e,tick:r,onTerminar:t,onPausar:pause,onRetomar:resume,onCancelar:n}){let a=Number(e.tiempoAcumuladoSegundos||0)*1000+(!e.pausadaAt?Math.max(0,Date.now()-Number(e.tramoInicioAt||e.inicio||Date.now())):0);return B.default.createElement("div",{className:"rounded-2xl p-4",style:{background:"#fff",border:`2px solid ${e.pausadaAt?"var(--violet)":"var(--marigold)"}`}},B.default.createElement("div",{className:"flex items-center gap-3"},B.default.createElement("div",{className:"flex-1"},B.default.createElement("div",{className:"text-2xl font-bold mono"},e.acId),B.default.createElement("div",{className:"text-xs",style:{color:"var(--muted)"}},e.tamano," · ",e.pausadaAt?"PAUSADA desde "+Dl(e.pausadaAt):"en curso · empezó a las "+Dl(e.inicio))),B.default.createElement("div",{className:"text-right"},B.default.createElement("div",{className:"mono font-bold text-3xl",style:{color:e.pausadaAt?"var(--violet)":"var(--marigold-deep)"}},Nl(a)),B.default.createElement("div",{className:"text-[10px]",style:{color:"var(--muted)"}},"tiempo efectivo"))),B.default.createElement("div",{className:"mt-3 flex gap-2"},e.pausadaAt?B.default.createElement("button",{onClick:()=>resume(e.id),className:"flex-1 text-white font-bold text-lg py-4 rounded-xl inline-flex items-center justify-center gap-2",style:{background:"var(--violet)"}},"▶ RETOMAR"):B.default.createElement("button",{onClick:()=>pause(e.id),className:"flex-1 text-white font-bold text-lg py-4 rounded-xl inline-flex items-center justify-center gap-2",style:{background:"var(--marigold-deep)"}},"Ⅱ PAUSAR"),B.default.createElement("button",{onClick:t,className:"flex-1 text-white font-bold text-lg py-4 rounded-xl inline-flex items-center justify-center gap-2",style:{background:"var(--clay)"}},B.default.createElement(v3,{width:"22",height:"22"})," TERMINAR"),B.default.createElement("button",{onClick:n,className:"px-4 rounded-xl",style:{background:"var(--paper)",color:"var(--muted)",border:"1px solid var(--line)"},title:"Cancelar sin guardar"},B.default.createElement(g3,{width:"18",height:"18"}))))}function T3'''
-          s,count=re.subn(pattern,replacement,s,count=1,flags=re.S)
-          if count!=1:
+          pattern = r'function S3\(\{sesion:e,tick:r,onTerminar:t,onCancelar:n\}\)\{.*?\}function T3'
+          replacement = '''function S3({sesion:e,tick:r,onTerminar:t,onPausar:pause,onRetomar:resume,onCancelar:n}){let a=Number(e.tiempoAcumuladoSegundos||0)*1000+(!e.pausadaAt?Math.max(0,Date.now()-Number(e.tramoInicioAt||e.inicio||Date.now())):0);return B.default.createElement("div",{className:"rounded-2xl p-4",style:{background:"#fff",border:`2px solid ${e.pausadaAt?"var(--violet)":"var(--marigold)"}`}},B.default.createElement("div",{className:"flex items-center gap-3"},B.default.createElement("div",{className:"flex-1"},B.default.createElement("div",{className:"text-2xl font-bold mono"},e.acId),B.default.createElement("div",{className:"text-xs",style:{color:"var(--muted)"}},e.tamano," · ",e.pausadaAt?"PAUSADA desde "+Dl(e.pausadaAt):"en curso · empezó a las "+Dl(e.inicio))),B.default.createElement("div",{className:"text-right"},B.default.createElement("div",{className:"mono font-bold text-3xl",style:{color:e.pausadaAt?"var(--violet)":"var(--marigold-deep)"}},Nl(a)),B.default.createElement("div",{className:"text-[10px]",style:{color:"var(--muted)"}},"tiempo efectivo"))),B.default.createElement("div",{className:"mt-3 flex gap-2"},e.pausadaAt?B.default.createElement("button",{onClick:()=>resume(e.id),className:"flex-1 text-white font-bold text-lg py-4 rounded-xl inline-flex items-center justify-center gap-2",style:{background:"var(--violet)"}},"▶ RETOMAR"):B.default.createElement("button",{onClick:()=>pause(e.id),className:"flex-1 text-white font-bold text-lg py-4 rounded-xl inline-flex items-center justify-center gap-2",style:{background:"var(--marigold-deep)"}},"Ⅱ PAUSAR"),B.default.createElement("button",{onClick:t,className:"flex-1 text-white font-bold text-lg py-4 rounded-xl inline-flex items-center justify-center gap-2",style:{background:"var(--clay)"}},B.default.createElement(v3,{width:"22",height:"22"})," TERMINAR"),B.default.createElement("button",{onClick:n,className:"px-4 rounded-xl",style:{background:"var(--paper)",color:"var(--muted)",border:"1px solid var(--line)"},title:"Cancelar sin guardar"},B.default.createElement(g3,{width:"18",height:"18"}))))}function T3'''
+          s, count = re.subn(pattern, replacement, s, count=1, flags=re.S)
+          if count != 1:
               raise SystemExit('No se pudo reemplazar la tarjeta S3')
-          p.write_text(s,encoding='utf-8')
 
-          final=p.read_text(encoding='utf-8')
-          required=['pausar_limpieza','retomar_limpieza','estado:"en_curso",pausadaAt:now,tiempoAcumuladoSegundos','!local.pausadaAt','onPausar:()=>pause(o.id)','onRetomar:()=>resume(o.id)','PAUSAR','RETOMAR','pausadaAt']
-          missing=[x for x in required if x not in final]
+          p.write_text(s, encoding='utf-8')
+
+          final = p.read_text(encoding='utf-8')
+          required = [
+              'pausar_limpieza','retomar_limpieza',
+              'estado:"pausada",pausadaAt:now,tiempoAcumuladoSegundos',
+              'estado==="en_curso"||j.estado==="pausada"',
+              'id:`S|${u.id}`',
+              'onPausar:()=>pause(o.id)','onRetomar:()=>resume(o.id)',
+              'PAUSAR','RETOMAR','pausadaAt'
+          ]
+          missing = [x for x in required if x not in final]
           if missing:
               raise SystemExit('Faltan elementos de pausa: '+', '.join(missing))
-          print('OK: pausa visible dentro de EN CURSO y temporizador congelado')
+          print('OK: PAUSAR persiste, sigue visible y congela el contador')
 
       - name: Commit
         shell: bash
@@ -80,5 +97,5 @@ jobs:
           git config user.email "chatgpt@users.noreply.github.com"
           git add index.html tablet/index.html
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Corregir pausa sin sacar la limpieza de curso [orden-v14]"
+          git commit -m "Corregir persistencia de pausa en Tablet [orden-v14]"
           git push
