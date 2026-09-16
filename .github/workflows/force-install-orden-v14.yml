@@ -38,7 +38,17 @@ jobs:
                   raise SystemExit('No se encontró el punto de inserción de los handlers de pausa')
               s = s.replace(marker, handlers, 1)
           else:
-              s = re.sub(r'let pauseSession=async id=>.*?let resumeSession=async id=>.*?};', handlers, s, count=1, flags=re.S)
+              old_pause='if(!local||local.estado!=="en_curso")return;'
+              new_pause='if(!local||local.estado!=="en_curso"||local.pausadaAt)return;'
+              old_resume='if(!local||local.estado!=="pausada")return;'
+              new_resume='if(!local||!local.pausadaAt)return;'
+              old_update='{...xe,estado:"pausada",tiempoAcumuladoSegundos:Math.round(accumulated),pausadaAt:now,tramoInicioAt:null}'
+              new_update='{...xe,estado:"en_curso",pausadaAt:now,tiempoAcumuladoSegundos:Math.round(accumulated),tramoInicioAt:null}'
+              if old_pause not in s or old_resume not in s or old_update not in s:
+                  raise SystemExit('No se encontró el handler antiguo de pausa para corregirlo')
+              s=s.replace(old_pause,new_pause,1)
+              s=s.replace(old_resume,new_resume,1)
+              s=s.replace(old_update,new_update,1)
 
           replacements = [
             ('onTerminar:C,onCancelar:I}),e==="elegir"', 'onTerminar:C,onPausar:pauseSession,onRetomar:resumeSession,onCancelar:I}),e==="elegir"'),
@@ -57,11 +67,11 @@ jobs:
           p.write_text(s,encoding='utf-8')
 
           final=p.read_text(encoding='utf-8')
-          required=['pausar_limpieza','retomar_limpieza','onPausar:()=>pause(o.id)','onRetomar:()=>resume(o.id)','PAUSAR','RETOMAR','pausadaAt']
+          required=['pausar_limpieza','retomar_limpieza','estado:"en_curso",pausadaAt:now,tiempoAcumuladoSegundos','!local.pausadaAt','onPausar:()=>pause(o.id)','onRetomar:()=>resume(o.id)','PAUSAR','RETOMAR','pausadaAt']
           missing=[x for x in required if x not in final]
           if missing:
               raise SystemExit('Faltan elementos de pausa: '+', '.join(missing))
-          print('OK: pausa queda en EN CURSO y se congela mediante pausadaAt')
+          print('OK: pausa visible dentro de EN CURSO y temporizador congelado')
 
       - name: Commit
         shell: bash
