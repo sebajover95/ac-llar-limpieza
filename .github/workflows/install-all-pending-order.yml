@@ -1,0 +1,41 @@
+name: Install all pending order panel
+on:
+  push:
+    branches: [main]
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Install panel
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          tag='<script src="/ac-llar-limpieza/orden-pendientes-extra.js?v=1"></script>'
+          if tag not in s:
+              marker='</body>'
+              if marker not in s: raise SystemExit('No se encontró </body>')
+              s=s.replace(marker,tag+'\n'+marker,1)
+              p.write_text(s,encoding='utf-8')
+              changed=True
+          else:
+              changed=False
+          print('changed=',changed)
+      - name: Commit and remove installer
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/install-all-pending-order.yml
+          git add index.html
+          git commit -m 'Mostrar todas las limpiezas pendientes en orden'
+          git fetch origin main
+          git rebase origin/main || { git rebase --abort; exit 1; }
+          git push origin HEAD:main
