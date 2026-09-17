@@ -2,8 +2,7 @@
 'use strict';
 if(window.__ACLLAR_ORDEN_TODAS__)return;
 window.__ACLLAR_ORDEN_TODAS__=true;
-const AC=/^AC-\d{3}[A-Z]?$/i;
-function supa(){return window.__ACLLAR_SUPABASE||window.supabaseClient||window.supabase||null}
+function supa(){try{return typeof supabaseClient!=='undefined'?supabaseClient:null}catch{return window.supabaseClient||window.supabase||null}}
 async function load(date){const c=supa();if(!c?.from)return[];try{const r=await c.from('limpieza_plan').select('ac_id,prioridad,estado').eq('fecha',date).eq('estado','pendiente').order('prioridad',{ascending:true}).order('ac_id',{ascending:true});return r.error?[]:(r.data||[]).map(x=>({ac:String(x.ac_id).toUpperCase(),prioridad:x.prioridad}))}catch{return[]}}
 async function save(date,list){const c=supa();if(!c?.from)return;for(let i=0;i<list.length;i++)await c.from('limpieza_plan').update({prioridad:i+1}).eq('fecha',date).eq('ac_id',list[i].ac)}
 function panelForDate(date){return document.getElementById('orden-ac-'+date)}
