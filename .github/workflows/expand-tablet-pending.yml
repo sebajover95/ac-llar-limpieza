@@ -1,0 +1,68 @@
+name: Expand tablet pending queue
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch tablet pending queue
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('tablet/index.html')
+          s = p.read_text(encoding='utf-8')
+
+          old = re.search(r'async function p3\(\)\{.*?\}var v3=', s, re.S)
+          if not old:
+              raise SystemExit('No se encontró la función p3 de la tablet')
+
+          new = '''async function p3(){let today=_v(h3());let {data,error}=await supabaseClient.from("limpieza_plan").select("id,fecha,ac_id,tamano,estado").gte("fecha",today).order("fecha",{ascending:!0}).order("prioridad",{ascending:!0}).order("ac_id",{ascending:!0}).limit(500);if(error)throw new Error("No se pudo leer el plan de limpieza: "+error.message);let all=data||[];let pending=all.filter(u=>u.estado!=="terminada");return{fecha:today,items:pending.map(u=>({id:u.ac_id,tamano:u.tamano||"Grande",planId:u.id,planEstado:u.estado}))}}var v3='''
+          s = s[:old.start()] + new + s[old.end():]
+
+          # Show the real number of pending cleanings in the vehicle chooser.
+          needle = '[{id:"pendientes",label:"Pendientes"},{id:"todas",label:"Todas"}]'
+          replacement = '[{id:"pendientes",label:`Pendientes (${e.length})`},{id:"todas",label:"Todas"}]'
+          if needle not in s:
+              raise SystemExit('No se encontró el selector de Pendientes')
+          s = s.replace(needle, replacement, 1)
+
+          p.write_text(s, encoding='utf-8')
+          print('Tablet patched: all pending rows + pending counter')
+      - name: Validate patch
+        shell: bash
+        run: |
+          grep -q 'label:`Pendientes (${e.length})`' tablet/index.html
+          grep -q 'return{fecha:today,items:pending.map' tablet/index.html
+          test "$(grep -o 'let C=j=>{l(j),r(\"terminar\")};' tablet/index.html | wc -l)" -eq 1
+      - name: Commit patch if needed
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git diff --quiet -- tablet/index.html; then
+            echo 'No patch needed.'
+            exit 0
+          fi
+          git add tablet/index.html
+          git commit -m 'Show all pending cleanings on tablet'
+          for i in 1 2 3 4 5; do
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; continue; }
+            git push origin HEAD:main && exit 0
+            sleep 2
+          done
+          echo 'Could not push patch after retries' >&2
+          exit 1
