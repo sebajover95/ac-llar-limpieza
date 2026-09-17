@@ -29,10 +29,10 @@ jobs:
           if not old:
               raise SystemExit('No se encontró la función p3 de la tablet')
 
-          new = '''async function p3(){let today=_v(h3());let {data,error}=await supabaseClient.from("limpieza_plan").select("id,fecha,ac_id,tamano,estado").gte("fecha",today).order("fecha",{ascending:!0}).order("prioridad",{ascending:!0}).order("ac_id",{ascending:!0}).limit(500);if(error)throw new Error("No se pudo leer el plan de limpieza: "+error.message);let all=data||[];let pending=all.filter(u=>u.estado!=="terminada");return{fecha:today,items:pending.map(u=>({id:u.ac_id,tamano:u.tamano||"Grande",planId:u.id,planEstado:u.estado}))}}var v3='''
+          new = '''async function p3(){let today=_v(h3());let {data,error}=await supabaseClient.from("limpieza_plan").select("id,fecha,ac_id,tamano,estado,prioridad").gte("fecha",today).order("fecha",{ascending:!0}).order("prioridad",{ascending:!0}).order("ac_id",{ascending:!0}).limit(500);if(error)throw new Error("No se pudo leer el plan de limpieza: "+error.message);let all=data||[],byId=new Map;for(let u of all)u.estado!=="terminada"&&byId.set(String(u.ac_id).toUpperCase(),{id:u.ac_id,tamano:u.tamano||"Grande",planId:u.id,planEstado:u.estado,prioridad:u.prioridad});try{let {data:src}=await supabaseClient.from("acllar_app_data").select("key,value").in("key",["acllar-snapshots-alquiler","limpieza-historial","acllar-tamano-por-ac"]);let snapRow=(src||[]).find(x=>x.key==="acllar-snapshots-alquiler"),histRow=(src||[]).find(x=>x.key==="limpieza-historial"),sizeRow=(src||[]).find(x=>x.key==="acllar-tamano-por-ac");let snap=snapRow?JSON.parse(snapRow.value||"{}"):{};let hist=histRow?JSON.parse(histRow.value||"{}"):{};let sizes=sizeRow?JSON.parse(sizeRow.value||"{}"):{};let returns={},active={};for(let [day,node] of Object.entries(snap||{})){if(!node?.acs||!/^\d{4}-\d{2}-\d{2}$/.test(day))continue;for(let x of node.acs||[]){let ac=String(x?.id||"").trim().toUpperCase(),ret=String(x?.ret||"").slice(0,10);if(!ac||!/^[A-Z]{2,3}-\d{3}[A-Z]?$/.test(ac)||!/^\d{4}-\d{2}-\d{2}$/.test(ret))continue;if(ret>today)continue;if(!returns[ac]||ret>returns[ac])returns[ac]=ret}}let latest=Object.keys(snap||{}).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x)&&x<=today).sort().pop();for(let x of (latest&&snap[latest]?.acs)||[]){let ac=String(x?.id||"").trim().toUpperCase(),ret=String(x?.ret||"").slice(0,10);if(ac&&ret>today)active[ac]=true}let cleaned={};for(let [day,node] of Object.entries(hist||{})){if(!/^\d{4}-\d{2}-\d{2}$/.test(day))continue;for(let key of Object.keys(node?.cleaned||{})){let ac=String(key).split("|")[0].trim().toUpperCase();if(!cleaned[ac]||day>cleaned[ac])cleaned[ac]=day}}for(let [ac,ret] of Object.entries(returns)){if(active[ac])continue;if(!cleaned[ac]||ret>cleaned[ac])byId.set(ac,{id:ac,tamano:sizes[ac]||"Mediano",planId:null,planEstado:"pendiente",prioridad:null})}}catch(e){console.warn("No se pudo ampliar la cola de pendientes desde los datos de alquiler:",e)}let pending=[...byId.values()];pending.sort((a,b)=>(a.prioridad==null?999999:a.prioridad)-(b.prioridad==null?999999:b.prioridad)||String(a.id).localeCompare(String(b.id)));return{fecha:today,items:pending}}var v3='''
+
           s = s[:old.start()] + new + s[old.end():]
 
-          # Show the real number of pending cleanings in the vehicle chooser.
           needle = '[{id:"pendientes",label:"Pendientes"},{id:"todas",label:"Todas"}]'
           replacement = '[{id:"pendientes",label:`Pendientes (${e.length})`},{id:"todas",label:"Todas"}]'
           if needle not in s:
@@ -40,12 +40,13 @@ jobs:
           s = s.replace(needle, replacement, 1)
 
           p.write_text(s, encoding='utf-8')
-          print('Tablet patched: all pending rows + pending counter')
+          print('Tablet patched: all pending cleanings + derived pending queue + counter')
       - name: Validate patch
         shell: bash
         run: |
           grep -q 'label:`Pendientes (${e.length})`' tablet/index.html
-          grep -q 'return{fecha:today,items:pending.map' tablet/index.html
+          grep -q 'return{fecha:today,items:pending}' tablet/index.html
+          grep -q 'acllar-snapshots-alquiler' tablet/index.html
           test "$(grep -o 'let C=j=>{l(j),r(\"terminar\")};' tablet/index.html | wc -l)" -eq 1
       - name: Commit patch if needed
         shell: bash
@@ -57,7 +58,7 @@ jobs:
             exit 0
           fi
           git add tablet/index.html
-          git commit -m 'Show all pending cleanings on tablet'
+          git commit -m 'Expand tablet pending queue from rental data'
           for i in 1 2 3 4 5; do
             git fetch origin main
             git rebase origin/main || { git rebase --abort; continue; }
