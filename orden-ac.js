@@ -29,6 +29,43 @@ if(release){if(done[ac]<release)e.textContent='Se limpia hoy';else e.textContent
 // Si no existe un regreso verificable, una limpieza reciente sigue siendo evidencia válida de que no hay que volver a marcarla como pendiente.
 const sd=new Date(sectionDate+'T00:00:00'),cd=new Date(done[ac]+'T00:00:00');const age=Math.round((sd-cd)/86400000);if(age>=0&&age<=14)e.textContent=cleanLabel(done[ac]);}}
 async function render(){const gs=sections();for(const g of gs){const p=await plan(g.date);let list=sortRows(g.rows,p).map(x=>({...x,date:g.date}));let today=new Date();let todayKey=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;if(g.date===todayKey){let q=await pendingQueue(todayKey);let existing=new Set(list.map(x=>x.ac));for(const x of q)if(!existing.has(x.ac)){list.push(x);existing.add(x.ac)}list=list.filter((x,i,a)=>a.findIndex(y=>y.ac===x.ac)===i)}renderSection(g,list)}await patchCleanLabels()}
+
+function normalizeStatsPeople(){
+  const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
+  const title=s=>{const t=String(s||'').trim();return t?t.charAt(0).toUpperCase()+t.slice(1):t};
+  const num=s=>{
+    const t=String(s||'').replace(/€|\s/g,'').trim();
+    if(!t)return 0;
+    const v=t.includes(',')?Number(t.replace(/\./g,'').replace(',','.')):Number(t.replace(/,/g,''));
+    return Number.isFinite(v)?v:0;
+  };
+  for(const h of [...document.querySelectorAll('*')]){
+    if(!visible(h)||String(h.textContent||'').trim()!=='Rendimiento por persona')continue;
+    const card=h.parentElement?.parentElement;
+    const table=card?.querySelector('table');
+    if(!table)continue;
+    const rows=[...table.querySelectorAll('tbody tr')];
+    const groups=new Map();
+    for(const row of rows){
+      const cells=[...row.querySelectorAll('td')];
+      if(cells.length<5)continue;
+      const person=String(cells[1].textContent||'').trim();
+      const key=norm(person);
+      if(!key)continue;
+      if(!groups.has(key)){groups.set(key,row);continue}
+      const first=groups.get(key);
+      const fc=[...first.querySelectorAll('td')];
+      const nums=[1,2,3,4].map(i=>num(fc[i]?.textContent)+num(cells[i]?.textContent));
+      for(let i=1;i<=4;i++)if(fc[i])fc[i].textContent=i===4?nums[i-1].toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €':String(nums[i-1]);
+      row.remove();
+    }
+    for(const row of groups.values()){
+      const cells=[...row.querySelectorAll('td')];
+      if(cells[1])cells[1].textContent=title(cells[1].textContent);
+    }
+  }
+}
+
 function start(){setTimeout(render,800);setInterval(render,5000)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
