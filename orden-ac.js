@@ -32,13 +32,14 @@ async function render(){const gs=sections();for(const g of gs){const p=await pla
 
 function normalizeStatsPeople(){
   const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
-  const title=s=>{const t=String(s||'').trim();return t?t.charAt(0).toUpperCase()+t.slice(1):t};
+  const title=s=>{const t=String(s||'').trim();return t?t.charAt(0).toUpperCase()+t.slice(1).toLowerCase():t};
   const num=s=>{
     const t=String(s||'').replace(/€|\s/g,'').trim();
     if(!t)return 0;
     const v=t.includes(',')?Number(t.replace(/\./g,'').replace(',','.')):Number(t.replace(/,/g,''));
     return Number.isFinite(v)?v:0;
   };
+  const money=n=>n.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
   for(const h of [...document.querySelectorAll('*')]){
     if(!visible(h)||String(h.textContent||'').trim()!=='Rendimiento por persona')continue;
     const card=h.parentElement?.parentElement;
@@ -48,19 +49,21 @@ function normalizeStatsPeople(){
     const groups=new Map();
     for(const row of rows){
       const cells=[...row.querySelectorAll('td')];
-      if(cells.length<5)continue;
+      if(cells.length<7)continue;
       const person=String(cells[1].textContent||'').trim();
       const key=norm(person);
       if(!key)continue;
       if(!groups.has(key)){groups.set(key,row);continue}
       const first=groups.get(key);
       const fc=[...first.querySelectorAll('td')];
-      const nums=[1,2,3,4].map(i=>num(fc[i]?.textContent)+num(cells[i]?.textContent));
-      for(let i=1;i<=4;i++)if(fc[i])fc[i].textContent=i===4?nums[i-1].toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €':String(nums[i-1]);
+      for(const i of [3,4,5])if(fc[i])fc[i].textContent=String(num(fc[i].textContent)+num(cells[i].textContent));
+      if(fc[6])fc[6].textContent=money(num(fc[6].textContent)+num(cells[6].textContent));
       row.remove();
     }
+    let n=1;
     for(const row of groups.values()){
       const cells=[...row.querySelectorAll('td')];
+      if(cells[0])cells[0].textContent=String(n++);
       if(cells[1])cells[1].textContent=title(cells[1].textContent);
     }
   }
