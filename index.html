@@ -247,8 +247,45 @@ vf=async S=>{
       if(!active)return;
       let rows=res.data||[];
 
+      // Supabase es la fuente de verdad de las limpiezas terminadas.
+      // Si el historial local tiene una marca del mismo AC en una fecha
+      // distinta a las fechas realmente registradas en la nube, se elimina
+      // para no mostrar una fecha de limpieza falsa.
+      const cloudDatesByAc=new Map();
+      for(const row of rows){
+        if(!row?.ac_id||!row?.inicio)continue;
+        const fecha=Ze(new Date(row.inicio));
+        if(!fecha)continue;
+        const set=cloudDatesByAc.get(String(row.ac_id))||new Set();
+        set.add(fecha);
+        cloudDatesByAc.set(String(row.ac_id),set);
+      }
+
       se(prev=>{
         let next={...prev},changed=false;
+
+        // Primero saneamos marcas locales que contradicen el historial cloud.
+        for(const [fecha,dia0] of Object.entries(next)){
+          if(!dia0?.cleaned)continue;
+          const cleaned={...(dia0.cleaned||{})};
+          let changedDia=false;
+          for(const [key,acId] of Object.entries(cleaned)){
+            const cloudDates=cloudDatesByAc.get(String(acId));
+            if(cloudDates && !cloudDates.has(fecha)){
+              delete cleaned[key];
+              changedDia=true;
+            }
+          }
+          if(changedDia){
+            const tiemposPorAc={...(dia0.tiemposPorAc||{})};
+            for(const acId of Object.keys(tiemposPorAc)){
+              const cloudDates=cloudDatesByAc.get(String(acId));
+              if(cloudDates && !cloudDates.has(fecha))delete tiemposPorAc[acId];
+            }
+            next[fecha]={...dia0,cleaned,tiemposPorAc};
+            changed=true;
+          }
+        }
         for(let row of rows){
           let fecha=Ze(new Date(row.inicio));
           if(!fecha)continue;
