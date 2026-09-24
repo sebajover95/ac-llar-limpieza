@@ -210,34 +210,86 @@ Se borrar\xE1 del historial y de las estad\xEDsticas. Si era una limpieza forzad
     );
 
     if(hecha){
-      let dia=Y[O]||{cleaned:{}};
-      let cleaned={...(dia.cleaned||{})};
-      cleaned[key]=Q;
-      let tamanoPorAc={...(dia.tamanoPorAc||{})};
-      tamanoPorAc[Q]=U;
-      let next={...Y,[O]:{...dia,cleaned,tamanoPorAc}};
-
       try{
-        let saved=await window.storage.set("limpieza-historial",JSON.stringify(next),!1);
-        if(saved===!1)throw new Error("El almacenamiento no confirmó el guardado.");
+        let sb=window.__ACLLAR_SUPABASE;
+        let session=(await sb.auth.getSession()).data.session;
+        if(!session?.user)throw new Error("No hay sesión de Supabase.");
+
+        // LEER SIEMPRE LA ÚLTIMA VERSIÓN DE LA NUBE ANTES DE ESCRIBIR.
+        // Evita que una pestaña/dispositivo con estado antiguo sobrescriba
+        // otras limpiezas forzadas ya facturadas.
+        let cloudHist=await sb.from("acllar_app_data")
+          .select("value")
+          .eq("owner_id",session.user.id)
+          .eq("key","limpieza-historial")
+          .maybeSingle();
+        if(cloudHist.error)throw cloudHist.error;
+
+        let latest={};
+        if(cloudHist.data?.value){
+          try{
+            let parsed=JSON.parse(cloudHist.data.value);
+            if(parsed&&typeof parsed==="object")latest=parsed;
+          }catch{}
+        }
+        if(!Object.keys(latest).length)latest={...Y};
+
+        let dia=latest[O]||{cleaned:{}};
+        let cleaned={...(dia.cleaned||{})};
+        cleaned[key]=Q;
+        let tamanoPorAc={...(dia.tamanoPorAc||{})};
+        tamanoPorAc[Q]=U;
+        let next={...latest,[O]:{...dia,cleaned,tamanoPorAc}};
+
+        let saveHist=await sb.from("acllar_app_data").upsert({
+          owner_id:session.user.id,
+          key:"limpieza-historial",
+          value:JSON.stringify(next),
+          updated_at:new Date().toISOString()
+        },{onConflict:"owner_id,key"});
+        if(saveHist.error)throw saveHist.error;
+
+        // Mantener también limpieza-done coherente, fusionándolo con la versión
+        // que haya actualmente en la nube.
+        let cloudDone=await sb.from("acllar_app_data")
+          .select("value")
+          .eq("owner_id",session.user.id)
+          .eq("key","limpieza-done")
+          .maybeSingle();
+        if(cloudDone.error)throw cloudDone.error;
+        let doneEntries=[];
+        if(cloudDone.data?.value){
+          try{
+            let parsed=JSON.parse(cloudDone.data.value);
+            if(Array.isArray(parsed))doneEntries=parsed;
+          }catch{}
+        }
+        let doneMap=new Map();
+        for(let entry of doneEntries){
+          if(Array.isArray(entry))doneMap.set(entry[0],entry[1]);
+        }
+        doneMap.set(key,O);
+        let saveDone=await sb.from("acllar_app_data").upsert({
+          owner_id:session.user.id,
+          key:"limpieza-done",
+          value:JSON.stringify([...doneMap.entries()]),
+          updated_at:new Date().toISOString()
+        },{onConflict:"owner_id,key"});
+        if(saveDone.error)throw saveDone.error;
+
+        se(next);
+        H(new Map(doneMap));
+
       }catch(err){
         console.error("No se pudo guardar la limpieza forzada:",err?.message||err);
         alert("No se pudo guardar la limpieza de "+Q+". No se marcará como facturada.");
         return !1;
       }
 
-      se(next);
-      H(prev=>{
-        let nextDone=new Map(prev);
-        nextDone.set(key,O);
-        return nextDone;
-      });
-
       return !0;
     }
     return !1;
   }
-
   Aa(re=>[...re,{key,id:Q,tamano:U,fecha:O}]);
   return !0;
 },
