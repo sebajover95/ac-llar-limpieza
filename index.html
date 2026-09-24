@@ -360,6 +360,11 @@ vf=async S=>{
           const cleaned={...(dia0.cleaned||{})};
           let changedDia=false;
           for(const [key,acId] of Object.entries(cleaned)){
+            // Las limpiezas forzadas (F|...) son registros manuales válidos.
+            // No deben eliminarse solo porque esa AC tenga otras fechas
+            // registradas en Supabase: una forzada puede existir precisamente
+            // sin una fila correspondiente en public.limpiezas.
+            if(String(key).startsWith("F|"))continue;
             const cloudDates=cloudDatesByAc.get(String(acId));
             if(cloudDates && !cloudDates.has(fecha)){
               delete cleaned[key];
