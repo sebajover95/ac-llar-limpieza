@@ -215,7 +215,9 @@ Se borrar\xE1 del historial y de las estad\xEDsticas. Si era una limpieza forzad
         let cleaned={...(dia.cleaned||{}),[key]:Q};
         let tamanoPorAc={...(dia.tamanoPorAc||{})};
         tamanoPorAc[Q]=U;
-        return {...prev,[O]:{...dia,cleaned,tamanoPorAc}};
+        let next={...prev,[O]:{...dia,cleaned,tamanoPorAc}};
+        window.storage.set("limpieza-historial",JSON.stringify(next),!1).catch(err=>console.warn("No se pudo guardar la limpieza forzada:",err?.message||err));
+        return next;
       });
 
       H(prev=>{
