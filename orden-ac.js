@@ -69,13 +69,24 @@ function nativePanel(){
 }
 function nativeRows(panel){
   if(!panel)return {list:null,rows:[]};
+  // Las filas nativas de PENDIENTES REALES son div.flex.items-center.gap-2.py-2.
+  // No dependemos de .divide-y porque esa clase puede cambiar al recompilar React.
+  const candidates=[...panel.querySelectorAll("div.flex.items-center.gap-2.py-2")];
+  const rows=candidates.filter(r=>{
+    const id=acFromText(r.textContent);
+    return !!id && /^[A-Z]{2,3}-\\d{2,3}[A-Z]?$/i.test(id);
+  });
+  if(rows.length){
+    const list=rows[0].parentElement;
+    return {list,rows};
+  }
   let list=panel.querySelector(".divide-y");
   if(!list){
     list=[...panel.children].find(x=>[...x.classList].includes("divide-y"))||null;
   }
   if(!list)return {list:null,rows:[]};
-  const rows=[...list.children].filter(r=>acFromText(r.textContent));
-  return {list,rows};
+  const fallback=[...list.children].filter(r=>acFromText(r.textContent));
+  return {list,rows:fallback};
 }
 function buttonBase(title){
   const b=document.createElement("button");
