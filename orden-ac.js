@@ -13,7 +13,6 @@ let prefsLoaded=false,loading=false,saveTimer=null;
 function normalise(v){
   const old=Array.isArray(v?.orden)?v.orden.map(canon).filter(Boolean):[];
   const byDate=(v?.ordenPorFecha&&typeof v.ordenPorFecha==="object")?v.ordenPorFecha:{};
-  if(!Object.keys(byDate).length&&old.length)byDate[todayKey()]=old;
   return {
     ordenPorFecha:Object.fromEntries(Object.entries(byDate).map(([d,a])=>[d,Array.isArray(a)?a.map(canon).filter(Boolean):[]])),
     ocultosTablet:Array.isArray(v?.ocultosTablet)?v.ocultosTablet.map(canon).filter(Boolean):[]
