@@ -1,4 +1,4 @@
-name: Force install order panel v14
+name: Force install order panel v15
 on:
   push:
     branches: [main]
@@ -16,7 +16,7 @@ jobs:
           from pathlib import Path
           import re
 
-          tag = '<script src="/ac-llar-limpieza/orden-ac.js?v=14"></script>'
+          tag = '<script src="/ac-llar-limpieza/orden-ac.js?v=15"></script>'
           for name in ['index.html', 'tablet/index.html']:
               p = Path(name)
               s = p.read_text(encoding='utf-8')
