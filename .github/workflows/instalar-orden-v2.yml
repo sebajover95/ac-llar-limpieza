@@ -12,12 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Instalar script de orden v14
+      - name: Instalar script de orden v15
         shell: python
         run: |
           from pathlib import Path
           import re
-          tag = '<script src="/ac-llar-limpieza/orden-ac.js?v=14"></script>'
+          tag = '<script src="/ac-llar-limpieza/orden-ac.js?v=15"></script>'
           for name in ['index.html', 'tablet/index.html']:
               p = Path(name)
               s = p.read_text(encoding='utf-8')
