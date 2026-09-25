@@ -6,7 +6,7 @@ permissions:
   contents: write
 jobs:
   install:
-    if: "!contains(github.event.head_commit.message, '[orden-v14]')"
+    if: "!contains(github.event.head_commit.message, '[orden-v16]')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,7 +16,7 @@ jobs:
           from pathlib import Path
           import re
 
-          tag = '<script src="/ac-llar-limpieza/orden-ac.js?v=15"></script>'
+          tag = '<script src="/ac-llar-limpieza/orden-ac.js?v=16"></script>'
           for name in ['index.html', 'tablet/index.html']:
               p = Path(name)
               s = p.read_text(encoding='utf-8')
@@ -70,7 +70,7 @@ jobs:
           git config user.email "chatgpt@users.noreply.github.com"
           git add index.html tablet/index.html
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Corregir pantalla en blanco y pausa Tablet [orden-v14]"
+          git commit -m "Corregir pantalla en blanco y pausa Tablet [orden-v16]"
           git fetch origin main
           git rebase origin/main
           git push origin HEAD:main
