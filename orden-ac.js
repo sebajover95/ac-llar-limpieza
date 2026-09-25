@@ -1,41 +1,181 @@
-(function(){
-'use strict';
-if(window.__ACLLAR_ORDEN_ESTABLE__)return;window.__ACLLAR_ORDEN_ESTABLE__=true;
-const AC=/^AC-\d{3}[A-Z]?$/i;
-const cleanKey='limpieza-done';
-function visible(e){const s=getComputedStyle(e),r=e.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0}
-function supa(){return window.__ACLLAR_SUPABASE||window.supabaseClient||window.supabase||null}
-async function appData(key){const c=supa();if(!c?.from)return null;try{const r=await c.from('acllar_app_data').select('key,value').eq('key',key);if(!r.error&&Array.isArray(r.data)&&r.data.length){const vals=r.data.map(x=>{try{return JSON.parse(x.value||'null')}catch{return null}}).filter(Boolean);if(key===cleanKey){const merged=[];for(const v of vals){if(Array.isArray(v))merged.push(...v);else if(v&&typeof v==='object')merged.push(v)}return merged}return vals[vals.length-1]}const s=await c.from('acllar_app_data').select('key,value').eq('key','__ACLLAR_SOURCE_OF_TRUTH__').maybeSingle();if(s.error||!s.data)return null;const snap=JSON.parse(s.data.value||'{}');if(key===cleanKey)return snap.limpiezaDone||[];if(key==='__ACLLAR_SOURCE_OF_TRUTH__')return snap;return null}catch{return null}}
-async function storageData(key){try{if(!window.storage?.get)return null;const r=await window.storage.get(key,false);return r?.value?JSON.parse(r.value):null}catch{return null}}
-function latestCleaned(v){const out={};if(!v||typeof v!=='object')return out;const entries=Array.isArray(v)?v:Object.entries(v).flatMap(([day,obj])=>obj?.cleaned?Object.entries(obj.cleaned).map(([ac])=>[ac,day]):[]);for(const item of entries){if(!Array.isArray(item)||item.length<2)continue;const ac=String(item[0]||'').split('|')[0].trim().toUpperCase();const d=String(item[1]||'').slice(0,10);if(AC.test(ac)&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&(!out[ac]||d>out[ac]))out[ac]=d}return out}
-function dateOfSection(h){const all=[...document.querySelectorAll('*')].filter(e=>visible(e)&&/^(Lun|Mar|Mi[eé]|Jue|Vie|S[aá]b|Dom),\s*\d{1,2}\/\d{1,2}/i.test((e.textContent||'').trim()));const hr=h.getBoundingClientRect();let best=null,top=-1e9;for(const e of all){const r=e.getBoundingClientRect();if(r.top<=hr.top&&r.top>top){best=e;top=r.top}}const m=(best?.textContent||'').match(/(\d{1,2})\/(\d{1,2})/);if(!m)return new Date().toISOString().slice(0,10);return `${new Date().getFullYear()}-${String(+m[2]).padStart(2,'0')}-${String(+m[1]).padStart(2,'0')}`}
-function sections(){const all=[...document.querySelectorAll('*')];return all.filter(e=>visible(e)&&/^A LIMPIAR\s*\(/i.test((e.textContent||'').trim())).map(h=>{const hr=h.getBoundingClientRect();let stop=Infinity;for(const e of all){if(visible(e)&&/^SALEN HOY\s*\(/i.test((e.textContent||'').trim())){const r=e.getBoundingClientRect();if(r.top>hr.bottom&&r.top<stop)stop=r.top}}const seen=new Set(),rows=[];for(const e of all){const t=(e.textContent||'').trim();if(!AC.test(t)||e.children.length||!visible(e))continue;const r=e.getBoundingClientRect();if(r.top<=hr.bottom||r.top>=stop)continue;const ac=t.toUpperCase();if(seen.has(ac))continue;seen.add(ac);rows.push({ac,el:e,row:e.parentElement})}rows.sort((a,b)=>a.el.getBoundingClientRect().top-b.el.getBoundingClientRect().top);return{h,date:dateOfSection(h),rows}}).filter(x=>x.rows.length)}
-async function plan(date){const c=supa();if(!c?.from)return[];try{const r=await c.from('limpieza_plan').select('ac_id,prioridad,estado,fecha').eq('fecha',date);return r.error?[]:(r.data||[])}catch{return[]}}
-async function pendingQueue(fromDate){const c=supa();if(!c?.from)return[];try{const r=await c.from('limpieza_plan').select('ac_id,prioridad,estado,fecha').gte('fecha',fromDate).eq('estado','pendiente').limit(500);if(r.error)return[];const returns=await currentReturnDates();return (r.data||[]).map(x=>{const ac=String(x.ac_id).toUpperCase(),date=String(x.fecha).slice(0,10);return {ac,date,prioridad:x.prioridad==null?999999:Number(x.prioridad),estado:x.estado,urgente:returns[ac]===date}}).sort((a,b)=>(a.urgente?0:1)-(b.urgente?0:1)||a.date.localeCompare(b.date)||a.prioridad-b.prioridad||a.ac.localeCompare(b.ac))}catch{return[]}}
-function sortRows(rows,p){const pri={};for(const x of p)if(x.estado==='pendiente'&&x.prioridad!=null)pri[String(x.ac_id).toUpperCase()]=Number(x.prioridad);return rows.slice().sort((a,b)=>(pri[a.ac]??999999)-(pri[b.ac]??999999)||a.ac.localeCompare(b.ac))}
-function panel(g,list){let p=document.getElementById('orden-ac-'+g.date);if(!p){p=document.createElement('div');p.id='orden-ac-'+g.date;p.style.cssText='margin:8px 0 10px;padding:0;background:#f4f7f5;border:2px solid #15302b;border-radius:10px;color:#15302b;overflow:hidden';g.h.parentElement?.insertBefore(p,g.h.nextSibling)}let collapsed=p.dataset.collapsed;if(collapsed==null){try{collapsed=localStorage.getItem('acllar-pendientes-collapsed-'+g.date)||'0'}catch{collapsed='0'}}const isToday=g.date===new Date().toISOString().slice(0,10);const title=isToday?'PENDIENTES REALES · '+list.length:'ORDEN DE LIMPIEZA · '+list.length;p.innerHTML='<button data-toggle-order aria-expanded="'+(collapsed!=='1')+'" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 12px;border:0;background:transparent;color:#15302B;text-align:left;cursor:pointer"><span><b style="font-size:14px">'+title+'</b><span style="display:block;font-size:11px;color:#65736e;margin-top:2px">'+(isToday?'Lista fija de vehículos pendientes de limpieza · se muestran todos, sin filtrarlos por reservas ni por limpiezas anteriores':'Orden del plan/reservas')+'</span></span><span style="font-size:18px;line-height:1">'+(collapsed==='1'?'▸':'▾')+'</span></button><div data-order-list style="padding:0 12px 10px;'+(collapsed==='1'?'display:none;':'')+'">'+list.map((x,i)=>'<div style="display:flex;align-items:center;gap:6px;border-top:1px solid #dfe6e2;padding:7px 0"><span style="width:22px;color:#7a8882;font-weight:700">'+(i+1)+'</span><b style="font-family:monospace;flex:1">'+x.ac+'</b><span style="font-size:10px;color:#65736e;min-width:70px;text-align:right">'+(x.salida?'SALE '+x.salida.slice(8,10)+'/'+x.salida.slice(5,7):'PENDIENTE')+'</span><button data-up="'+x.ac+'" style="width:36px;height:30px">▲</button><button data-down="'+x.ac+'" style="width:36px;height:30px">▼</button></div>').join('')+'</div>';const tb=p.querySelector('[data-toggle-order]');if(tb)tb.onclick=()=>{const next=p.dataset.collapsed==='1'?'0':'1';p.dataset.collapsed=next;try{localStorage.setItem('acllar-pendientes-collapsed-'+g.date,next)}catch{};renderSection(g,list)};return p}
-async function save(list){const c=supa();if(!c?.from)return;for(let i=0;i<list.length;i++)await c.from('limpieza_plan').update({prioridad:i+1}).eq('fecha',list[i].date).eq('ac_id',list[i].ac)}
-function move(g,list,ac,delta){const i=list.findIndex(x=>x.ac===ac),j=i+delta;if(i<0||j<0||j>=list.length)return;[list[i],list[j]]=[list[j],list[i]];renderSection(g,list);const today=new Date();const todayKey=String(today.getFullYear())+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');if(g.date===todayKey&&!list.some(x=>x.row))saveCampaOrder(list).then(()=>setTimeout(render,500));else save(list).then(()=>setTimeout(render,500))}
-function renderSection(g,list){const p=panel(g,list);p.querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>move(g,list,b.dataset.up,-1));p.querySelectorAll('[data-down]').forEach(b=>b.onclick=()=>move(g,list,b.dataset.down,1));const rb=p.querySelector('[data-reales-pendientes]');if(rb)rb.onclick=async()=>{await renderPendientesTab();const r=document.getElementById('acllar-pendientes-tab');if(r)r.style.display='block'};const current=list.filter(x=>x.date===g.date&&x.row);const parent=current[0]?.row?.parentElement;if(!parent||current.some(x=>x.row.parentElement!==parent))return;let anchor=current[0].row;parent.insertBefore(anchor,parent.firstChild);for(let i=1;i<current.length;i++){parent.insertBefore(current[i].row,anchor.nextSibling);anchor=current[i].row}}
-function cleanLabel(d){return 'Limpia desde '+d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4)}
-function dateCandidates(value){if(value==null)return[];const s=String(value).trim();const out=[];let m;const iso=s.match(/(20\d{2})[-\/.](\d{1,2})[-\/.](\d{1,2})/);if(iso)out.push(`${iso[1]}-${String(+iso[2]).padStart(2,'0')}-${String(+iso[3]).padStart(2,'0')}`);m=s.match(/(\d{1,2})[-\/.](\d{1,2})[-\/.](20\d{2})/);if(m)out.push(`${m[3]}-${String(+m[2]).padStart(2,'0')}-${String(+m[1]).padStart(2,'0')}`);return out}
-function rowObjects(snapshot){if(!snapshot)return[];const rows=Array.isArray(snapshot.data)?snapshot.data:[];const headers=Array.isArray(snapshot.headers)?snapshot.headers:[];const mapping=snapshot.mapping&&typeof snapshot.mapping==='object'?snapshot.mapping:{};return rows.map(row=>{if(row&&typeof row==='object'&&!Array.isArray(row))return row;const o={};headers.forEach((h,i)=>{o[String(h||'').trim()]=Array.isArray(row)?row[i]:undefined});return o}).map(row=>({row,mapping}));}
-function valueBySemantic(row,mapping,aliases){const keys=Object.keys(row||{});const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();for(const a of aliases){const na=norm(a);const mk=Object.keys(mapping||{}).find(k=>norm(k)===na||norm(k).includes(na));if(mk){const actual=mapping[mk];if(actual!=null&&row[actual]!=null&&String(row[actual]).trim()!=='')return row[actual];if(row[mk]!=null&&String(row[mk]).trim()!=='')return row[mk]}}for(const k of keys){const nk=norm(k);if(aliases.some(a=>nk.includes(norm(a)))){const v=row[k];if(v!=null&&String(v).trim()!=='')return v}}return null}
-async function currentReturnDates(){const snap=await storageData('acllar-reservas-C');const out={};for(const {row,mapping} of rowObjects(snap)){const acv=valueBySemantic(row,mapping,['ac','id','matricula','matricula vehiculo','vehiculo','vehículo','unidad']);const acm=String(acv||'').match(/AC-\d{3}[A-Z]?/i);if(!acm)continue;const ac=acm[0].toUpperCase();const semantic=valueBySemantic(row,mapping,['devolucion','devolución','fecha devolucion','fecha devolución','retorno','regreso','fin alquiler','hasta']);const vals=dateCandidates(semantic);if(!vals.length)continue;const d=vals.sort()[0];if(!out[ac]||d<out[ac])out[ac]=d}return out}
-async function historicalReturnDates(untilDate){const snap=await appData('__ACLLAR_SOURCE_OF_TRUTH__');const out={};const root=snap?.snapshotsAlquiler;if(!root||typeof root!=='object')return out;const visit=(node,contextDate)=>{if(!node)return;if(Array.isArray(node)){for(const x of node)visit(x,contextDate);return}if(typeof node!=='object')return;const row=node.row&&typeof node.row==='object'?node.row:node;const acv=Object.values(row).map(v=>String(v??'')).find(v=>/AC-\d{3}[A-Z]?/i.test(v));const m=String(acv||'').match(/AC-\d{3}[A-Z]?/i);if(m){const ac=m[0].toUpperCase();let ret=null;for(const [k,v] of Object.entries(row)){const nk=String(k).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();if(/devol|retorno|regreso|fin alquiler/.test(nk)){ret=dateCandidates(v)[0]||ret}}if(ret&&ret<=untilDate&&(!out[ac]||ret>out[ac]))out[ac]=ret}for(const [k,v] of Object.entries(node)){if(k!=='row'&&typeof v==='object')visit(v,/^\d{4}-\d{2}-\d{2}$/.test(k)?k:contextDate)}};visit(root,null);return out}
-async function patchCleanLabels(){const done=latestCleaned(await appData(cleanKey));if(!Object.keys(done).length)return;const returns=await currentReturnDates();const all=[...document.querySelectorAll('*')],heads=all.filter(e=>visible(e)&&/^SALEN HOY\s*\(/i.test((e.textContent||'').trim())).sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top);for(const e of all){if(!visible(e)||e.children.length)continue;const t=(e.textContent||'').trim();if(!/^(Se limpia hoy|Pendiente de limpieza|Limpia desde \d{2}\/\d{2}\/\d{4})$/i.test(t))continue;const r=e.getBoundingClientRect();let h=null;for(const x of heads){const xr=x.getBoundingClientRect();if(xr.top<r.top)h=x;else break}if(!h)continue;const sectionDate=dateOfSection(h);let node=e.parentElement,ac=null;for(let n=0;n<10&&node;n++,node=node.parentElement){const m=(node.textContent||'').match(/\bAC-\d{3}[A-Z]?\b/i);if(m){ac=m[0].toUpperCase();break}}if(!ac||!done[ac])continue;let release=returns[ac]||null;if(!release){const hist=await historicalReturnDates(sectionDate);release=hist[ac]||null}
-// Nunca usamos la fecha de la sección como si fuese un regreso: hacerlo convertía limpiezas recientes en "Se limpia hoy" aunque el vehículo ya hubiese sido limpiado.
-if(release){if(done[ac]<release)e.textContent='Se limpia hoy';else e.textContent=cleanLabel(done[ac]);continue}
-// Si no existe un regreso verificable, una limpieza reciente sigue siendo evidencia válida de que no hay que volver a marcarla como pendiente.
-const sd=new Date(sectionDate+'T00:00:00'),cd=new Date(done[ac]+'T00:00:00');const age=Math.round((sd-cd)/86400000);if(age>=0&&age<=14)e.textContent=cleanLabel(done[ac]);}}
-async function confirmedCampa(){const c=supa();if(!c?.from)return null;try{const r=await c.from('acllar_app_data').select('owner_id,value,updated_at').eq('key','limpieza-pendientes-campa').order('updated_at',{ascending:false}).limit(1);if(r.error||!r.data?.length)return null;const v=JSON.parse(r.data[0].value||'{}');if(!v||typeof v!=='object')return null;const fecha=String(v.fecha||'').slice(0,10);const vehiculos=[...new Set((Array.isArray(v.vehiculos)?v.vehiculos:[]).map(x=>String(x).trim().toUpperCase()).filter(Boolean))];const orden=[...new Set((Array.isArray(v.orden)?v.orden:[]).map(x=>String(x).trim().toUpperCase()).filter(Boolean))];const hasOrder=orden.length>0;const ordered=hasOrder?[...orden.filter(ac=>vehiculos.includes(ac)),...vehiculos.filter(ac=>!orden.includes(ac))]:vehiculos;return fecha&&vehiculos.length?{fecha,vehiculos:ordered,orden:hasOrder?ordered:[],hasOrder}:null}catch{return null}}
-async function saveCampaOrder(list){const c=supa();if(!c?.from)return;try{const q=await c.from('acllar_app_data').select('owner_id,value').eq('key','limpieza-pendientes-campa');if(q.error||!q.data?.length)return;const row=q.data[0];let v={};try{v=JSON.parse(row.value||'{}')}catch{}v.orden=list.map(x=>x.ac||x);v.vehiculos=Array.isArray(v.vehiculos)?v.vehiculos:v.orden;await c.from('acllar_app_data').update({value:JSON.stringify(v),updated_at:new Date().toISOString()}).eq('key','limpieza-pendientes-campa').eq('owner_id',row.owner_id)}catch{}}
-async function reservationState(){const snap=await storageData('acllar-reservas-C');const by={};for(const {row,mapping} of rowObjects(snap)){const acv=valueBySemantic(row,mapping,['ac','id','matricula','matricula vehiculo','vehiculo','vehículo','unidad']);const m=String(acv||'').match(/AC-\d{3}[A-Z]?/i);if(!m)continue;const ac=m[0].toUpperCase();const dep=dateCandidates(valueBySemantic(row,mapping,['entrega','fecha de entrega','fecha entrega','salida','inicio alquiler','inicio']))[0]||null;const ret=dateCandidates(valueBySemantic(row,mapping,['devolucion','devolución','fecha devolucion','fecha devolución','retorno','regreso','fin alquiler','hasta']))[0]||null;if(!dep&&!ret)continue;(by[ac]||(by[ac]=[])).push({dep,ret})}return by}
-async function realPendingQueue(){const conf=await confirmedCampa();if(!conf)return[];const state=await reservationState();const today=new Date();const todayKey=String(today.getFullYear())+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');const baseOrder=conf.hasOrder?conf.orden:conf.vehiculos;const pos=new Map(baseOrder.map((ac,i)=>[ac,i]));return conf.vehiculos.map(ac=>{const trips=state[ac]||[];const salida=trips.map(t=>t.dep).filter(d=>d&&d>=todayKey).sort()[0]||null;return{ac,origen:'PENDIENTE ACTUAL',salida,fecha:conf.fecha,prioridad:pos.has(ac)?pos.get(ac)+1:999999,estado:'pendiente',urgente:false}}).sort((a,b)=>a.prioridad-b.prioridad||a.ac.localeCompare(b.ac))}
-async function renderPendientesTab(){let root=document.getElementById('acllar-pendientes-tab');if(!root){root=document.createElement('div');root.id='acllar-pendientes-tab';root.style.cssText='position:fixed;inset:0;background:#E7ECE8;z-index:99998;display:none;overflow:auto;padding:18px;font-family:Inter,system-ui,sans-serif;color:#15302B';document.body.appendChild(root)}const rows=await realPendingQueue();root.innerHTML='<div style="max-width:760px;margin:0 auto"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px"><div><div style="font-size:20px;font-weight:700">Pendientes reales de limpieza</div><div style="font-size:12px;color:#65736e;margin-top:3px">Solo vehículos que necesitan limpieza interior y están en campa hoy. Se ordenan por su próxima salida.</div></div><button id="acllar-pendientes-cerrar" style="border:1px solid #CBD5D0;background:#fff;border-radius:9px;padding:9px 12px;font-weight:600">Cerrar</button></div><div style="background:#fff;border:1px solid #D6DED8;border-radius:12px;padding:14px"><div style="font-size:12px;color:#65736e;margin-bottom:8px">Total: <b style="color:#15302B">'+rows.length+'</b></div>'+rows.map((x,i)=>'<div style="display:flex;align-items:center;gap:10px;border-top:1px solid #EEF2EF;padding:10px 0"><span style="width:24px;color:#7A8882;font-weight:700">'+(i+1)+'</span><b style="font-family:monospace;font-size:15px;flex:1">'+x.ac+'</b><span style="font-size:10px;color:#65736e">'+(x.salida?'SALE '+x.salida.slice(8,10)+'/'+x.salida.slice(5,7):x.origen)+'</span></div>').join('')+(rows.length?'':'<div style="padding:18px 0;color:#65736e">No hay vehículos pendientes registrados.</div>')+'</div></div>';root.querySelector('#acllar-pendientes-cerrar').onclick=()=>root.style.display='none'}
-function installPendientesTab(){const candidates=[...document.querySelectorAll('button')].filter(b=>/factur|estad|historial|limpieza/i.test((b.textContent||'').trim()));let anchor=candidates[candidates.length-1];if(!anchor||document.getElementById('acllar-pendientes-btn'))return;if(!anchor.parentElement)return;const b=document.createElement('button');b.id='acllar-pendientes-btn';b.textContent='Pendientes';b.style.cssText='padding:7px 11px;border:1px solid #CBD5D0;border-radius:8px;background:#fff;color:#15302B;font-size:12px;font-weight:600;margin-left:6px';b.onclick=async()=>{await renderPendientesTab();document.getElementById('acllar-pendientes-tab').style.display='block'};anchor.parentElement.appendChild(b)}
-async function render(){installPendientesTab();const gs=sections();const returns=await currentReturnDates();const real=await realPendingQueue();for(const g of gs){let list=[];let today=new Date();let todayKey=String(today.getFullYear())+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');if(g.date===todayKey){list=real.map((x,i)=>({ac:x.ac,date:g.date,prioridad:i+1,estado:'pendiente',urgente:i===0&&!!x.salida&&x.salida===todayKey,row:null}));}else{const p=await plan(g.date);list=sortRows(g.rows,p).map(x=>({...x,date:g.date,urgente:returns[x.ac]===g.date}));list.sort((a,b)=>(a.urgente?0:1)-(b.urgente?0:1)||((a.prioridad??999999)-(b.prioridad??999999))||a.ac.localeCompare(b.ac));}renderSection(g,list)}await patchCleanLabels()}
+(()=>{"use strict";
+if(window.__ACLLAR_ORDEN_UNIFICADO__)return;window.__ACLLAR_ORDEN_UNIFICADO__=true;
 
-function start(){setTimeout(render,800);setInterval(render,5000);setInterval(installPendientesTab,2500)}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
+const KEY="limpieza-pendientes-preferencias";
+const AC=/\bAC-\d{3}[A-Z]?\b/i;
+const supa=()=>window.__ACLLAR_SUPABASE||window.supabaseClient||null;
+const canon=x=>String(x||"").trim().toUpperCase();
+const acFromText=t=>{const m=String(t||"").match(AC);return m?canon(m[0]):null};
+
+let prefs={orden:[],ocultosTablet:[]};
+let prefsLoaded=false;
+let saveTimer=null;
+
+async function loadPrefs(){
+  const c=supa(); if(!c?.from)return prefs;
+  try{
+    const r=await c.from("acllar_app_data").select("key,value").eq("key",KEY).maybeSingle();
+    if(!r.error&&r.data){
+      const v=JSON.parse(r.data.value||"{}");
+      prefs={
+        orden:Array.isArray(v?.orden)?v.orden.map(canon).filter(Boolean):[],
+        ocultosTablet:Array.isArray(v?.ocultosTablet)?v.ocultosTablet.map(canon).filter(Boolean):[]
+      };
+    }
+  }catch{}
+  prefsLoaded=true;
+  return prefs;
+}
+async function savePrefs(next){
+  prefs={
+    orden:Array.isArray(next.orden)?next.orden.map(canon).filter(Boolean):[],
+    ocultosTablet:Array.isArray(next.ocultosTablet)?next.ocultosTablet.map(canon).filter(Boolean):[]
+  };
+  const c=supa(); if(!c?.from)return;
+  try{
+    const session=(await c.auth.getSession()).data?.session;
+    const owner=session?.user?.id;
+    if(!owner)return;
+    await c.from("acllar_app_data").upsert(
+      {owner_id:owner,key:KEY,value:JSON.stringify(prefs),updated_at:new Date().toISOString()},
+      {onConflict:"owner_id,key"}
+    );
+  }catch{}
+}
+function scheduleSave(next){
+  prefs=next;
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>savePrefs(prefs),120);
+}
+function orderedIds(ids){
+  const unique=[...new Set(ids.map(canon).filter(Boolean))];
+  const pos=new Map((prefs.orden||[]).map((id,i)=>[id,i]));
+  return unique.slice().sort((a,b)=>{
+    const pa=pos.has(a)?pos.get(a):999999;
+    const pb=pos.has(b)?pos.get(b):999999;
+    return pa-pb||unique.indexOf(a)-unique.indexOf(b);
+  });
+}
+function mergeOrder(ids){
+  const unique=[...new Set(ids.map(canon).filter(Boolean))];
+  const current=prefs.orden||[];
+  return [...current.filter(x=>unique.includes(x)),...unique.filter(x=>!current.includes(x))];
+}
+
+function removeLegacyPanels(){
+  document.querySelectorAll('[id^="orden-ac-"]').forEach(x=>x.remove());
+}
+
+function nativePanel(){
+  return [...document.querySelectorAll("button")].find(b=>{
+    const t=(b.textContent||"").trim();
+    return /^PENDIENTES REALES\s*·/i.test(t)&&t.includes("Se muestran todos los vehículos devueltos");
+  })?.parentElement||null;
+}
+function nativeRows(panel){
+  const list=panel?.querySelector(".divide-y");
+  if(!list)return {list:null,rows:[]};
+  const rows=[...list.children].filter(r=>acFromText(r.textContent));
+  return {list,rows};
+}
+function styleBtn(b,title,txt){
+  b.type="button"; b.title=title; b.textContent=txt;
+  b.style.cssText="width:30px;height:28px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);font-weight:700;font-size:13px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;";
+}
+function applyNativeOrder(panel){
+  const {list,rows}=nativeRows(panel); if(!list||!rows.length)return;
+  const ids=rows.map(r=>acFromText(r.textContent));
+  const wanted=orderedIds(ids);
+  const by=new Map(rows.map(r=>[acFromText(r.textContent),r]));
+  wanted.forEach(id=>{const row=by.get(id);if(row)list.appendChild(row)});
+  const full=mergeOrder(ids);
+  if(JSON.stringify(full)!==JSON.stringify(prefs.orden)){
+    prefs.orden=full;
+    scheduleSave(prefs);
+  }
+}
+function enhanceNative(){
+  removeLegacyPanels();
+  const panel=nativePanel(); if(!panel)return;
+  const {list,rows}=nativeRows(panel); if(!list||!rows.length)return;
+  applyNativeOrder(panel);
+  const hidden=new Set(prefs.ocultosTablet||[]);
+  rows.forEach((row)=>{
+    const id=acFromText(row.textContent); if(!id)return;
+    if(row.dataset.acOrdenUnificado==="1")return;
+    row.dataset.acOrdenUnificado="1";
+    row.style.flexWrap="wrap";
+    const controls=document.createElement("span");
+    controls.dataset.acOrdenControls="1";
+    controls.style.cssText="margin-left:auto;display:flex;align-items:center;gap:4px;flex:0 0 auto;";
+    const up=document.createElement("button"),down=document.createElement("button"),hide=document.createElement("button");
+    styleBtn(up,"Subir prioridad","▲"); styleBtn(down,"Bajar prioridad","▼");
+    hide.style.cssText="height:28px;padding:0 7px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);font-size:10px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;";
+    hide.title=hidden.has(id)?"Mostrar en Tablet":"Ocultar en Tablet";
+    hide.textContent=hidden.has(id)?"🚫":"👁";
+    controls.append(up,down,hide); row.appendChild(controls);
+
+    up.onclick=(ev)=>{ev.stopPropagation(); moveNative(id,-1)};
+    down.onclick=(ev)=>{ev.stopPropagation(); moveNative(id,1)};
+    hide.onclick=(ev)=>{
+      ev.stopPropagation();
+      const set=new Set(prefs.ocultosTablet||[]);
+      set.has(id)?set.delete(id):set.add(id);
+      hide.textContent=set.has(id)?"🚫":"👁";
+      hide.title=set.has(id)?"Mostrar en Tablet":"Ocultar en Tablet";
+      prefs.ocultosTablet=[...set];
+      scheduleSave(prefs);
+    };
+  });
+}
+async function moveNative(id,delta){
+  const panel=nativePanel(); const {list,rows}=nativeRows(panel); if(!list)return;
+  const ids=rows.map(r=>acFromText(r.textContent));
+  const order=mergeOrder(ids);
+  const i=order.indexOf(id),j=i+delta;
+  if(i<0||j<0||j>=order.length)return;
+  [order[i],order[j]]=[order[j],order[i]];
+  prefs.orden=order;
+  scheduleSave(prefs);
+  const by=new Map(rows.map(r=>[acFromText(r.textContent),r]));
+  order.forEach(x=>{if(by.has(x))list.appendChild(by.get(x))});
+  setTimeout(enhanceNative,50);
+}
+
+function tabletRows(){
+  const out=[];
+  for(const b of [...document.querySelectorAll("button")]){
+    const id=acFromText(b.textContent);
+    if(!id||!/^AC-\d{3}[A-Z]?$/i.test(id))continue;
+    if(!b.textContent.trim().toUpperCase().startsWith(id))continue;
+    if(!b.closest("#root"))continue;
+    out.push(b);
+  }
+  return [...new Set(out)];
+}
+function applyTablet(){
+  if(!/\/tablet(?:\/|$)/i.test(location.pathname))return;
+  const rows=tabletRows(); if(!rows.length)return;
+  const hidden=new Set(prefs.ocultosTablet||[]);
+  rows.forEach(b=>{
+    const id=acFromText(b.textContent); if(!id)return;
+    b.style.display=hidden.has(id)?"none":"";
+  });
+  const visible=rows.filter(b=>!hidden.has(acFromText(b.textContent)));
+  const groups=new Map();
+  visible.forEach(b=>{const p=b.parentElement;if(p)groups.set(p,(groups.get(p)||[]).concat(b))});
+  for(const [parent,items] of groups){
+    if(items.length<2)continue;
+    const wanted=orderedIds(items.map(b=>acFromText(b.textContent)));
+    const by=new Map(items.map(b=>[acFromText(b.textContent),b]));
+    wanted.forEach(id=>{const b=by.get(id);if(b)parent.appendChild(b)});
+  }
+}
+async function tick(){
+  if(!prefsLoaded)await loadPrefs();
+  if(/\/tablet(?:\/|$)/i.test(location.pathname))applyTablet();
+  else enhanceNative();
+}
+tick();
+setInterval(tick,1800);
 })();
