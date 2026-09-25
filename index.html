@@ -619,14 +619,30 @@ for(let G of ge){
 }
 let pendientesReales=[];
 for(let [id,ret] of latestReturnByAc){
+  id=df(id);
+  if(!id||Hr.has(id))continue;
   let currentRet=currentRentalReturnByAc.get(id);
   if(currentRet&&currentRet>fa)continue;
   let lc=latestCleanedByAc.get(id);
-  if(lc&&lc>ret)continue;
+  // Si la limpieza es del mismo día de la devolución, la consideramos
+  // posterior a efectos de esta lista: con fechas sin hora no podemos
+  // distinguir el orden intradía, y una limpieza registrada hoy debe sacar
+  // la AC de "pendientes reales".
+  if(lc&&lc>=ret)continue;
   let nextDep=nextDepartureByAc.get(id)||null;
   let modelo=U.get(id)||"",clase=S.get(id)||"",tipo=Sf(modelo+" "+clase),tamano=tipo?tipo.nombre:"Sin dato";
   pendientesReales.push({id,ret,nextDep,modelo,tamano});
-}let or=[],dl=[];for(let G of Ef){let norm=String(G.id||"").trim().toUpperCase();if((activeCleanings||[]).some(S=>String(S.ac_id).trim().toUpperCase()===norm))continue;let lc=latestCleanedByAc.get(G.id);(W.has(G.key)||(lc&&G.release&&lc>=G.release)?dl:or).push(G);}let Vr={},pl=0,mp=!1;if(or.length===0)pl=0;else{let G=q4(or,Ga.length,a);if(G)Vr=G.assign,pl=G.people;else{mp=!0,Vr={},or.forEach((xe,ve)=>Vr[ve]=xe.r);let ne={};or.forEach((xe,ve)=>ne[Vr[ve]]=(ne[Vr[ve]]||0)+xe.w),pl=Math.ceil(Math.max(...Object.values(ne))/a),Wr.push("No se pudo repartir dentro de las ventanas; se muestra cada limpieza el d\xEDa de la vuelta.")}}let Gr={},xp=(G,ne,xe)=>{let ve=Ga[G],De=Ze(ve);Gr[De]||(Gr[De]={date:ve,items:[]}),Gr[De].items.push(Object.assign({key:ne.key,id:ne.id,modelo:ne.modelo,tamano:ne.tamano,peso:ne.peso,category:ne.category,margenDias:ne.margenDias,nextDep:ne.nextDep,arrastrada:ne.arrastrada,forzada:ne.forzada},xe))};or.forEach((G,ne)=>xp(Vr[ne],G,{movedFrom:Vr[ne]!==G.r?Ga[G.r]:null,hecha:!1})),dl.forEach(G=>xp(G.r,G,{movedFrom:null,hecha:!0}));
+}
+pendientesReales.sort((A,B)=>{
+  if(A.nextDep&&B.nextDep){
+    let d=A.nextDep-B.nextDep;
+    if(d)return d;
+    return A.ret-B.ret||A.id.localeCompare(B.id);
+  }
+  if(A.nextDep&&!B.nextDep)return -1;
+  if(!A.nextDep&&B.nextDep)return 1;
+  return A.ret-B.ret||A.id.localeCompare(B.id);
+});let or=[],dl=[];for(let G of Ef){let norm=String(G.id||"").trim().toUpperCase();if((activeCleanings||[]).some(S=>String(S.ac_id).trim().toUpperCase()===norm))continue;let lc=latestCleanedByAc.get(G.id);(W.has(G.key)||(lc&&G.release&&lc>=G.release)?dl:or).push(G);}let Vr={},pl=0,mp=!1;if(or.length===0)pl=0;else{let G=q4(or,Ga.length,a);if(G)Vr=G.assign,pl=G.people;else{mp=!0,Vr={},or.forEach((xe,ve)=>Vr[ve]=xe.r);let ne={};or.forEach((xe,ve)=>ne[Vr[ve]]=(ne[Vr[ve]]||0)+xe.w),pl=Math.ceil(Math.max(...Object.values(ne))/a),Wr.push("No se pudo repartir dentro de las ventanas; se muestra cada limpieza el d\xEDa de la vuelta.")}}let Gr={},xp=(G,ne,xe)=>{let ve=Ga[G],De=Ze(ve);Gr[De]||(Gr[De]={date:ve,items:[]}),Gr[De].items.push(Object.assign({key:ne.key,id:ne.id,modelo:ne.modelo,tamano:ne.tamano,peso:ne.peso,category:ne.category,margenDias:ne.margenDias,nextDep:ne.nextDep,arrastrada:ne.arrastrada,forzada:ne.forzada},xe))};or.forEach((G,ne)=>xp(Vr[ne],G,{movedFrom:Vr[ne]!==G.r?Ga[G.r]:null,hecha:!1})),dl.forEach(G=>xp(G.r,G,{movedFrom:null,hecha:!0}));
 
 // Las forzadas son limpiezas reales del plan del día, no solo registros auxiliares.
 // Las añadimos explícitamente a Gr para que aparezcan también en "a limpiar",
