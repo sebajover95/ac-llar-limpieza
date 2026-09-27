@@ -19,7 +19,19 @@ function normalise(v){
   };
 }
 function client(){return window.__ACLLAR_SUPABASE||window.supabaseClient||null}
-function currentOrder(){return prefs.ordenPorFecha[todayKey()]||[]}
+function panelDateKey(panel){
+  try{
+    const t=(panel?.querySelector("button")?.textContent||"").trim();
+    const m=t.match(/(\d{1,2})\s*\/\s*(\d{1,2})/);
+    if(!m)return todayKey();
+    const now=new Date(),y=now.getFullYear(),mo=Number(m[2]),d=Number(m[1]);
+    let yy=y;
+    if(now.getMonth()+1===1&&mo===12)yy=y-1;
+    if(now.getMonth()+1===12&&mo===1)yy=y+1;
+    return yy+"-"+String(mo).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+  }catch{return todayKey()}
+}
+function currentOrder(dayKey=todayKey()){return prefs.ordenPorFecha[dayKey]||[]}
 
 async function loadPrefs(){
   if(loading)return;
@@ -45,18 +57,19 @@ async function savePrefs(){
   }catch{}
 }
 function queueSave(){clearTimeout(saveTimer);saveTimer=setTimeout(savePrefs,150)}
-function orderedIds(ids){
+function orderedIds(ids,dayKey=todayKey()){
   const unique=[...new Set(ids.map(canon).filter(Boolean))];
-  const pos=new Map(currentOrder().map((id,i)=>[id,i]));
-  if(!currentOrder().length)return unique;
+  const saved=currentOrder(dayKey);
+  const pos=new Map(saved.map((id,i)=>[id,i]));
+  if(!saved.length)return unique;
   return unique.slice().sort((a,b)=>{
     const pa=pos.has(a)?pos.get(a):999999,pb=pos.has(b)?pos.get(b):999999;
     return pa-pb||unique.indexOf(a)-unique.indexOf(b);
   });
 }
-function mergeOrder(ids){
+function mergeOrder(ids,dayKey=todayKey()){
   const unique=[...new Set(ids.map(canon).filter(Boolean))];
-  const old=currentOrder();
+  const old=currentOrder(dayKey);
   return [...old.filter(id=>unique.includes(id)),...unique.filter(id=>!old.includes(id))];
 }
 
@@ -110,21 +123,40 @@ function reorderDom(list,rows,order){
   const by=new Map(rows.map(r=>[acFromText(r.textContent),r]));
   order.forEach(id=>{const row=by.get(id);if(row)list.appendChild(row)});
 }
-function moveNative(id,delta){
+async function persistPriorities(dayKey,order){
+  const c=client();if(!c?.from)return;
+  try{
+    const r=await c.from("limpieza_plan").select("id,ac_id").eq("fecha",dayKey);
+    if(r.error)throw r.error;
+    const by=new Map((r.data||[]).map(x=>[canon(x.ac_id),x.id]));
+    for(let i=0;i<order.length;i++){
+      const rowId=by.get(canon(order[i]));
+      if(rowId){
+        const up=await c.from("limpieza_plan").update({prioridad:i}).eq("id",rowId);
+        if(up.error)throw up.error;
+      }
+    }
+  }catch(e){console.warn("No se pudo guardar el orden de las AC en limpieza_plan:",e)}
+}
+async function moveNative(id,delta){
   const panel=nativePanel(),{list,rows}=nativeRows(panel);if(!list||!rows.length)return;
+  const dayKey=panelDateKey(panel);
   const ids=rows.map(r=>acFromText(r.textContent));
-  const order=mergeOrder(ids);
+  const order=mergeOrder(ids,dayKey);
   const i=order.indexOf(id),j=i+delta;if(i<0||j<0||j>=order.length)return;
   [order[i],order[j]]=[order[j],order[i]];
-  prefs.ordenPorFecha[todayKey()]=order;
-  queueSave();reorderDom(list,rows,order);
+  prefs.ordenPorFecha[dayKey]=order;
+  queueSave();
+  reorderDom(list,rows,order);
+  await persistPriorities(dayKey,order);
   setTimeout(enhanceNative,80);
 }
 function enhanceNative(){
   const panel=nativePanel();if(!panel)return;
   const {list,rows}=nativeRows(panel);if(!list||!rows.length)return;
-  const order=currentOrder();
-  if(order.length)reorderDom(list,rows,orderedIds(rows.map(r=>acFromText(r.textContent))));
+  const dayKey=panelDateKey(panel);
+  const order=currentOrder(dayKey);
+  if(order.length)reorderDom(list,rows,orderedIds(rows.map(r=>acFromText(r.textContent)),dayKey));
   const hidden=new Set(prefs.ocultosTablet||[]);
   [...list.children].filter(r=>acFromText(r.textContent)).forEach(row=>{
     const id=acFromText(row.textContent);if(!id)return;
@@ -177,7 +209,7 @@ function applyTablet(){
   visible.forEach(el=>{const p=el.parentElement;if(p)byParent.set(p,[...(byParent.get(p)||[]),el])});
   for(const [parent,items] of byParent){
     if(items.length<2)continue;
-    const order=orderedIds(items.map(x=>acFromText(x.textContent)));
+    const order=orderedIds(items.map(x=>acFromText(x.textContent)),todayKey());
     const by=new Map(items.map(x=>[acFromText(x.textContent),x]));
     order.forEach(id=>{const el=by.get(id);if(el)parent.appendChild(el)});
   }
