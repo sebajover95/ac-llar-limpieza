@@ -132,7 +132,6 @@ let vp={sin_limpieza:0,limpia_hoy:1,limpiada:2,ya_lista:3,otra_sede:4},Pf=0;for(
           // Supabase es la fuente de verdad para el estado recogido por la Tablet.
           // Nunca rebajamos una limpieza ya terminada/en curso a pendiente.
           let desiredState=
-            existing.estado==="terminada" ? "terminada" :
             existing.estado==="en_curso" ? "en_curso" :
             (S.hecha?"terminada":"pendiente");
 
