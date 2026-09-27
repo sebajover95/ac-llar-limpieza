@@ -87,9 +87,9 @@ function nativeRows(panel){
   // por su contenido: una sola AC + la información "sale ..." / "volvió ...".
   const all=[...panel.querySelectorAll("div")];
   const candidates=all.filter(r=>{
-    const txt=(r.textContent||"").replace(/\\s+/g," ").trim();
-    const ids=txt.match(/\\b[A-Z]{2,3}-\\d{2,3}[A-Z]?\\b/gi)||[];
-    return ids.length===1 && /\\bsale\\b/i.test(txt) && txt.length<120;
+    const txt=(r.textContent||"").replace(/\s+/g," ").trim();
+    const ids=txt.match(/\b[A-Z]{2,3}-\\d{2,3}[A-Z]?\b/gi)||[];
+    return ids.length===1 && /\bsale\b/i.test(txt) && txt.length<120;
   });
 
   // Nos quedamos con el elemento más pequeño para cada fila visual.
@@ -172,9 +172,9 @@ function cleaningRows(){
     const id=acFromText(txt);if(!id)continue;
     let row=el;
     for(let n=0;n<10 && row;n++,row=row.parentElement){
-      const rt=(row.textContent||"").replace(/\\s+/g," ").trim();
-      const ids=rt.match(/\\b[A-Z]{2,3}-\\d{2,3}[A-Z]?\\b/gi)||[];
-      if(ids.length===1 && /\\bsale\\b/i.test(rt) && rt.length<180){
+      const rt=(row.textContent||"").replace(/\s+/g," ").trim();
+      const ids=rt.match(/\b[A-Z]{2,3}-\\d{2,3}[A-Z]?\b/gi)||[];
+      if(ids.length===1 && /\bsale\b/i.test(rt) && rt.length<180){
         found.set(id,row);
         break;
       }
@@ -183,7 +183,7 @@ function cleaningRows(){
   return [...found.entries()].map(([id,row])=>({id,row}));
 }
 function cleaningDayKey(){
-  const h=[...document.querySelectorAll("div,span,h1,h2,h3")].find(x=>/^A LIMPIAR\\s*\\(/i.test((x.textContent||"").trim()));
+  const h=[...document.querySelectorAll("div,span,h1,h2,h3")].find(x=>/^A LIMPIAR\s*\(/i.test((x.textContent||"").trim()));
   return h?panelDateKey(h.closest(".rounded-xl")||h.parentElement):todayKey();
 }
 function renderPriorityOverlays(){
@@ -225,7 +225,7 @@ async function moveCleaning(id,delta){
   if(!list)return;
   const items=rows.filter(x=>x.row.parentElement===list);
   const dayKey=(()=>{
-    const h=[...document.querySelectorAll("div,span,h1,h2,h3")].find(x=>/^A LIMPIAR\\s*\\(/i.test((x.textContent||"").trim()));
+    const h=[...document.querySelectorAll("div,span,h1,h2,h3")].find(x=>/^A LIMPIAR\s*\(/i.test((x.textContent||"").trim()));
     return h?panelDateKey(h.closest(".rounded-xl")||h.parentElement):todayKey();
   })();
   const order=mergeOrder(items.map(x=>x.id),dayKey);
