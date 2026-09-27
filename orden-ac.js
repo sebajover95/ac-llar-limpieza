@@ -74,7 +74,7 @@ function nativeRows(panel){
   const candidates=[...panel.querySelectorAll("div.flex.items-center.gap-2.py-2")];
   const rows=candidates.filter(r=>{
     const id=acFromText(r.textContent);
-    return !!id && /^[A-Z]{2,3}-\\d{2,3}[A-Z]?$/i.test(id);
+    return !!id && /^[A-Z]{2,3}-\d{2,3}[A-Z]?$/i.test(id);
   });
   if(rows.length){
     const list=rows[0].parentElement;
