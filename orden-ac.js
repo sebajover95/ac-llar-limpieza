@@ -160,6 +160,83 @@ async function moveNative(id,delta){
   await persistPriorities(dayKey,order);
   setTimeout(enhanceNative,80);
 }
+function cleaningRows(){
+  const boxes=[...document.querySelectorAll('input[type="checkbox"]')];
+  const rows=[];
+  for(const box of boxes){
+    let el=box.parentElement,best=null;
+    for(let n=0;el&&n<8;n++,el=el.parentElement){
+      const txt=(el.textContent||"").replace(/\\s+/g," ").trim();
+      const ids=txt.match(/\\b[A-Z]{2,3}-\\d{2,3}[A-Z]?\\b/gi)||[];
+      if(ids.length===1 && /\\bsale\\b/i.test(txt)){
+        best=el;
+      }
+      if(best && n>=2 && txt.length>180)break;
+    }
+    if(best){
+      const id=acFromText(best.textContent);
+      if(id && !rows.some(x=>x.row===best))rows.push({row:best,id});
+    }
+  }
+  return rows;
+}
+function enhanceCleaningOrder(){
+  const rows=cleaningRows();
+  if(!rows.length)return;
+  // La lista de "A LIMPIAR" es el padre común inmediato de estas filas.
+  const groups=new Map();
+  rows.forEach(x=>{
+    const p=x.row.parentElement;
+    if(p)groups.set(p,[...(groups.get(p)||[]),x]);
+  });
+  for(const [list,items] of groups){
+    if(items.length<2)continue;
+    const dayKey=(()=>{
+      const h=[...document.querySelectorAll("div,span,h1,h2,h3")].find(x=>/^A LIMPIAR\\s*\\(/i.test((x.textContent||"").trim()));
+      return h?panelDateKey(h.closest(".rounded-xl")||h.parentElement):todayKey();
+    })();
+    const ids=items.map(x=>x.id);
+    const order=orderedIds(ids,dayKey);
+    const by=new Map(items.map(x=>[x.id,x.row]));
+    order.forEach(id=>{const row=by.get(id);if(row)list.appendChild(row)});
+    for(const {row,id} of items){
+      let controls=row.querySelector('[data-ac-priority-controls="1"]');
+      if(!controls){
+        controls=document.createElement("span");
+        controls.dataset.acPriorityControls="1";
+        controls.style.cssText="margin-left:auto;display:inline-flex;align-items:center;gap:4px;flex:0 0 auto;position:relative;z-index:20;";
+        const up=buttonBase("Subir prioridad");
+        const down=buttonBase("Bajar prioridad");
+        up.textContent="▲";down.textContent="▼";
+        up.onclick=e=>{e.preventDefault();e.stopPropagation();moveCleaning(id,-1)};
+        down.onclick=e=>{e.preventDefault();e.stopPropagation();moveCleaning(id,1)};
+        controls.append(up,down);
+        row.appendChild(controls);
+      }
+    }
+  }
+}
+async function moveCleaning(id,delta){
+  const rows=cleaningRows();
+  if(!rows.length)return;
+  const item=rows.find(x=>x.id===id);
+  const list=item?.row.parentElement;
+  if(!list)return;
+  const items=rows.filter(x=>x.row.parentElement===list);
+  const dayKey=(()=>{
+    const h=[...document.querySelectorAll("div,span,h1,h2,h3")].find(x=>/^A LIMPIAR\\s*\\(/i.test((x.textContent||"").trim()));
+    return h?panelDateKey(h.closest(".rounded-xl")||h.parentElement):todayKey();
+  })();
+  const order=mergeOrder(items.map(x=>x.id),dayKey);
+  const i=order.indexOf(id),j=i+delta;
+  if(i<0||j<0||j>=order.length)return;
+  [order[i],order[j]]=[order[j],order[i]];
+  prefs.ordenPorFecha[dayKey]=order;
+  queueSave();
+  const by=new Map(items.map(x=>[x.id,x.row]));
+  order.forEach(ac=>{const row=by.get(ac);if(row)list.appendChild(row)});
+  await persistPriorities(dayKey,order);
+}
 function enhanceNative(){
   const panel=nativePanel();if(!panel)return;
   const {list,rows}=nativeRows(panel);if(!list||!rows.length)return;
@@ -226,7 +303,7 @@ function applyTablet(){
 async function tick(){
   if(!prefsLoaded)await loadPrefs();
   if(/\/tablet(?:\/|$)/i.test(location.pathname))applyTablet();
-  else enhanceNative();
+  else { enhanceNative(); enhanceCleaningOrder(); }
 }
 tick();setInterval(tick,1000);
 })();
