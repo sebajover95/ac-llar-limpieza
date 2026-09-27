@@ -161,60 +161,62 @@ async function moveNative(id,delta){
   setTimeout(enhanceNative,80);
 }
 function cleaningRows(){
-  const boxes=[...document.querySelectorAll('input[type="checkbox"]')];
-  const rows=[];
-  for(const box of boxes){
-    let el=box.parentElement,best=null;
-    for(let n=0;el&&n<8;n++,el=el.parentElement){
-      const txt=(el.textContent||"").replace(/\\s+/g," ").trim();
-      const ids=txt.match(/\\b[A-Z]{2,3}-\\d{2,3}[A-Z]?\\b/gi)||[];
-      if(ids.length===1 && /\\bsale\\b/i.test(txt)){
-        best=el;
-      }
-      if(best && n>=2 && txt.length>180)break;
-    }
-    if(best){
-      const id=acFromText(best.textContent);
-      if(id && !rows.some(x=>x.row===best))rows.push({row:best,id});
-    }
+  const candidates=[];
+  for(const el of [...document.querySelectorAll("div,li,article,tr")]){
+    const txt=(el.textContent||"").replace(/\\s+/g," ").trim();
+    if(txt.length<15||txt.length>120||!/\\bsale\\b/i.test(txt))continue;
+    const ids=txt.match(/\\b[A-Z]{2,3}-\\d{2,3}[A-Z]?\\b/gi)||[];
+    if(ids.length!==1)continue;
+    const id=acFromText(ids[0]);if(!id)continue;
+    // Elegimos el contenedor más profundo que contiene exactamente una AC y "sale".
+    const child=[...el.children].some(ch=>{
+      const ct=(ch.textContent||"").replace(/\\s+/g," ").trim();
+      const ci=ct.match(/\\b[A-Z]{2,3}-\\d{2,3}[A-Z]?\\b/gi)||[];
+      return ci.length===1 && /\\bsale\\b/i.test(ct) && ct.length>=15 && ct.length<120;
+    });
+    if(!child)candidates.push({row:el,id});
   }
-  return rows;
+  // Evita duplicados por anidamiento y conserva las cuatro/seis filas reales.
+  const out=[];
+  for(const x of candidates){
+    if(!out.some(y=>y.id===x.id && (y.row.contains(x.row)||x.row.contains(y.row))))out.push(x);
+  }
+  return out;
 }
-function enhanceCleaningOrder(){
+function cleaningDayKey(){
+  const h=[...document.querySelectorAll("div,span,h1,h2,h3")].find(x=>/^A LIMPIAR\\s*\\(/i.test((x.textContent||"").trim()));
+  return h?panelDateKey(h.closest(".rounded-xl")||h.parentElement):todayKey();
+}
+function renderPriorityOverlays(){
+  document.querySelectorAll("[data-ac-priority-overlay]").forEach(x=>x.remove());
   const rows=cleaningRows();
   if(!rows.length)return;
-  // La lista de "A LIMPIAR" es el padre común inmediato de estas filas.
-  const groups=new Map();
-  rows.forEach(x=>{
-    const p=x.row.parentElement;
-    if(p)groups.set(p,[...(groups.get(p)||[]),x]);
+  const dayKey=cleaningDayKey();
+  const order=orderedIds(rows.map(x=>x.id),dayKey);
+  const byId=new Map(rows.map(x=>[x.id,x.row]));
+  const visible=order.map(id=>byId.get(id)).filter(Boolean);
+  visible.forEach((row,index)=>{
+    const id=acFromText(row.textContent);
+    if(!id)return;
+    const rect=row.getBoundingClientRect();
+    const box=document.createElement("span");
+    box.dataset.acPriorityOverlay="1";
+    box.style.cssText="position:fixed;left:"+Math.max(8,Math.min(window.innerWidth-76,rect.right-70))+"px;top:"+Math.max(4,rect.top+(rect.height-30)/2)+"px;width:68px;height:30px;display:flex;align-items:center;justify-content:flex-end;gap:4px;z-index:2147483647;pointer-events:auto;";
+    const up=buttonBase("Subir prioridad");
+    const down=buttonBase("Bajar prioridad");
+    up.textContent="▲";down.textContent="▼";
+    up.style.width="30px";down.style.width="30px";
+    up.disabled=index===0;down.disabled=index===visible.length-1;
+    if(up.disabled)up.style.opacity=".35";
+    if(down.disabled)down.style.opacity=".35";
+    up.onclick=e=>{e.preventDefault();e.stopPropagation();moveCleaning(id,-1)};
+    down.onclick=e=>{e.preventDefault();e.stopPropagation();moveCleaning(id,1)};
+    box.append(up,down);
+    document.body.appendChild(box);
   });
-  for(const [list,items] of groups){
-    if(items.length<2)continue;
-    const dayKey=(()=>{
-      const h=[...document.querySelectorAll("div,span,h1,h2,h3")].find(x=>/^A LIMPIAR\\s*\\(/i.test((x.textContent||"").trim()));
-      return h?panelDateKey(h.closest(".rounded-xl")||h.parentElement):todayKey();
-    })();
-    const ids=items.map(x=>x.id);
-    const order=orderedIds(ids,dayKey);
-    const by=new Map(items.map(x=>[x.id,x.row]));
-    order.forEach(id=>{const row=by.get(id);if(row)list.appendChild(row)});
-    for(const {row,id} of items){
-      let controls=row.querySelector('[data-ac-priority-controls="1"]');
-      if(!controls){
-        controls=document.createElement("span");
-        controls.dataset.acPriorityControls="1";
-        controls.style.cssText="margin-left:auto;display:inline-flex;align-items:center;gap:4px;flex:0 0 auto;position:relative;z-index:20;";
-        const up=buttonBase("Subir prioridad");
-        const down=buttonBase("Bajar prioridad");
-        up.textContent="▲";down.textContent="▼";
-        up.onclick=e=>{e.preventDefault();e.stopPropagation();moveCleaning(id,-1)};
-        down.onclick=e=>{e.preventDefault();e.stopPropagation();moveCleaning(id,1)};
-        controls.append(up,down);
-        row.appendChild(controls);
-      }
-    }
-  }
+}
+function enhanceCleaningOrder(){
+  renderPriorityOverlays();
 }
 async function moveCleaning(id,delta){
   const rows=cleaningRows();
