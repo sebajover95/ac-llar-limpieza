@@ -82,24 +82,33 @@ function nativePanel(){
 }
 function nativeRows(panel){
   if(!panel)return {list:null,rows:[]};
-  // Las filas nativas de PENDIENTES REALES son div.flex.items-center.gap-2.py-2.
-  // No dependemos de .divide-y porque esa clase puede cambiar al recompilar React.
-  const candidates=[...panel.querySelectorAll("div.flex.items-center.gap-2.py-2")];
-  const rows=candidates.filter(r=>{
-    const id=acFromText(r.textContent);
-    return !!id && /^[A-Z]{2,3}-\d{2,3}[A-Z]?$/i.test(id);
+
+  // React cambia las clases de estas filas con frecuencia. Las detectamos
+  // por su contenido: una sola AC + la información "sale ..." / "volvió ...".
+  const all=[...panel.querySelectorAll("div")];
+  const candidates=all.filter(r=>{
+    const txt=(r.textContent||"").replace(/\\s+/g," ").trim();
+    const ids=txt.match(/\\b[A-Z]{2,3}-\\d{2,3}[A-Z]?\\b/gi)||[];
+    return ids.length===1 && /\\bsale\\b/i.test(txt) && txt.length<120;
   });
+
+  // Nos quedamos con el elemento más pequeño para cada fila visual.
+  const rows=[];
+  for(const r of candidates){
+    const id=acFromText(r.textContent);
+    if(!id)continue;
+    const child=candidates.find(x=>x!==r && r.contains(x) && acFromText(x.textContent)===id);
+    if(!child)rows.push(r);
+  }
   if(rows.length){
     const list=rows[0].parentElement;
     return {list,rows};
   }
-  let list=panel.querySelector(".divide-y");
-  if(!list){
-    list=[...panel.children].find(x=>[...x.classList].includes("divide-y"))||null;
-  }
+
+  // Fallback para versiones anteriores de la UI.
+  const list=panel.querySelector(".divide-y")||[...panel.children].find(x=>[...x.classList].includes("divide-y"))||null;
   if(!list)return {list:null,rows:[]};
-  const fallback=[...list.children].filter(r=>acFromText(r.textContent));
-  return {list,rows:fallback};
+  return {list,rows:[...list.children].filter(r=>acFromText(r.textContent))};
 }
 function buttonBase(title){
   const b=document.createElement("button");
