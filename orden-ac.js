@@ -1,5 +1,5 @@
 (()=>{"use strict";
-if(window.__ACLLAR_ORDEN_UNIFICADO_V16__)return;window.__ACLLAR_ORDEN_UNIFICADO_V16__=true;
+if(window.__ACLLAR_ORDEN_UNIFICADO_V18__)return;window.__ACLLAR_ORDEN_UNIFICADO_V18__=true;
 
 const KEY="limpieza-pendientes-preferencias";
 const AC=/\b[A-Z]{2,3}-\d{2,3}[A-Z]?\b/i;
@@ -198,21 +198,22 @@ function renderPriorityOverlays(){
   visible.forEach((row,index)=>{
     const id=acFromText(row.textContent);
     if(!id)return;
-    if(getComputedStyle(row).position==="static")row.style.position="relative";
     const box=document.createElement("span");
     box.dataset.acPriorityControls="1";
-    box.style.cssText="position:absolute;right:8px;top:50%;transform:translateY(-50%);height:32px;display:flex;align-items:center;gap:4px;z-index:20;pointer-events:auto;";
+    box.style.cssText="display:inline-flex;align-items:center;gap:3px;flex:0 0 auto;margin-left:2px;";
     const up=buttonBase("Subir prioridad"),down=buttonBase("Bajar prioridad");
     up.textContent="▲";down.textContent="▼";
-    up.style.width="30px";down.style.width="30px";
+    up.style.width="27px";down.style.width="27px";
+    up.style.height="26px";down.style.height="26px";
     up.disabled=index===0;down.disabled=index===visible.length-1;
     if(up.disabled)up.style.opacity=".35";
     if(down.disabled)down.style.opacity=".35";
     up.onclick=e=>{e.preventDefault();e.stopPropagation();moveCleaning(id,-1)};
     down.onclick=e=>{e.preventDefault();e.stopPropagation();moveCleaning(id,1)};
     box.append(up,down);
-    row.appendChild(box);
-    row.style.paddingRight=Math.max(parseInt(getComputedStyle(row).paddingRight)||0,76)+"px";
+    const checkbox=row.querySelector("button");
+    if(checkbox)row.insertBefore(box,checkbox.nextSibling);
+    else row.insertBefore(box,row.firstChild);
   });
 }
 function enhanceCleaningOrder(){
