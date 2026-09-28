@@ -161,26 +161,19 @@ async function moveNative(id,delta){
   setTimeout(enhanceNative,80);
 }
 function cleaningRows(){
-  // La sección "A limpiar" tiene un botón inequívoco para cada vehículo:
-  // el checkbox con aria-label de marcar/desmarcar limpieza.
-  // Partimos de ese botón y subimos hasta la fila que contiene una sola AC.
-  const wanted=/^[A-Z]{2,3}-\d{2,3}[A-Z]?$/i;
+  // En la UI real de "A LIMPIAR", el botón de limpieza está dentro
+  // de la propia fila. No buscamos ancestros ni texto auxiliar:
+  // el padre directo del checkbox ES la fila que queremos mejorar.
   const found=new Map();
   const checks=[...document.querySelectorAll(
     'button[aria-label="Marcar como limpiada"],button[aria-label="Desmarcar limpieza"]'
   )];
   for(const check of checks){
-    let row=check.parentElement;
-    for(let n=0;n<12 && row;n++,row=row.parentElement){
-      const txt=(row.textContent||"").replace(/\s+/g," ").trim();
-      const ids=txt.match(/\b[A-Z]{2,3}-\d{2,3}[A-Z]?\b/gi)||[];
-      if(ids.length!==1 || !/\bsale\b/i.test(txt) || txt.length>=180)continue;
-      const id=canon(ids[0]);
-      if(wanted.test(id)){
-        found.set(id,row);
-        break;
-      }
-    }
+    const row=check.parentElement;
+    if(!row)continue;
+    const id=acFromText(row.textContent);
+    if(!id)continue;
+    found.set(id,row);
   }
   return [...found.entries()].map(([id,row])=>({id,row}));
 }
