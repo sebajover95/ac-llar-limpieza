@@ -88,7 +88,7 @@ function nativeRows(panel){
   const all=[...panel.querySelectorAll("div")];
   const candidates=all.filter(r=>{
     const txt=(r.textContent||"").replace(/\s+/g," ").trim();
-    const ids=txt.match(/\b[A-Z]{2,3}-\\d{2,3}[A-Z]?\b/gi)||[];
+    const ids=txt.match(/\b[A-Z]{2,3}-\d{2,3}[A-Z]?\b/gi)||[];
     return ids.length===1 && /\bsale\b/i.test(txt) && txt.length<120;
   });
 
@@ -163,7 +163,7 @@ async function moveNative(id,delta){
 function cleaningRows(){
   // Detectamos las filas desde el texto exacto de la AC, no por clases ni por
   // checkbox: así funciona aunque React cambie toda la estructura del DOM.
-  const wanted=/^[A-Z]{2,3}-\\d{2,3}[A-Z]?$/i;
+  const wanted=/^[A-Z]{2,3}-\d{2,3}[A-Z]?$/i;
   const found=new Map();
   for(const el of document.querySelectorAll("body *")){
     if(el.children.length)continue;
@@ -173,7 +173,7 @@ function cleaningRows(){
     let row=el;
     for(let n=0;n<10 && row;n++,row=row.parentElement){
       const rt=(row.textContent||"").replace(/\s+/g," ").trim();
-      const ids=rt.match(/\b[A-Z]{2,3}-\\d{2,3}[A-Z]?\b/gi)||[];
+      const ids=rt.match(/\b[A-Z]{2,3}-\d{2,3}[A-Z]?\b/gi)||[];
       if(ids.length===1 && /\bsale\b/i.test(rt) && rt.length<180){
         found.set(id,row);
         break;
