@@ -187,7 +187,8 @@ function cleaningDayKey(){
   return h?panelDateKey(h.closest(".rounded-xl")||h.parentElement):todayKey();
 }
 function renderPriorityOverlays(){
-  document.querySelectorAll("[data-ac-priority-overlay]").forEach(x=>x.remove());
+  // Las flechas forman parte de cada tarjeta de "A LIMPIAR".
+  document.querySelectorAll("[data-ac-priority-controls]").forEach(x=>x.remove());
   const rows=cleaningRows();
   if(!rows.length)return;
   const dayKey=cleaningDayKey();
@@ -197,12 +198,11 @@ function renderPriorityOverlays(){
   visible.forEach((row,index)=>{
     const id=acFromText(row.textContent);
     if(!id)return;
-    const rect=row.getBoundingClientRect();
+    if(getComputedStyle(row).position==="static")row.style.position="relative";
     const box=document.createElement("span");
-    box.dataset.acPriorityOverlay="1";
-    box.style.cssText="position:fixed;left:"+Math.max(8,Math.min(window.innerWidth-76,rect.right-70))+"px;top:"+Math.max(4,rect.top+(rect.height-30)/2)+"px;width:68px;height:30px;display:flex;align-items:center;justify-content:flex-end;gap:4px;z-index:2147483647;pointer-events:auto;";
-    const up=buttonBase("Subir prioridad");
-    const down=buttonBase("Bajar prioridad");
+    box.dataset.acPriorityControls="1";
+    box.style.cssText="position:absolute;right:8px;top:50%;transform:translateY(-50%);height:32px;display:flex;align-items:center;gap:4px;z-index:20;pointer-events:auto;";
+    const up=buttonBase("Subir prioridad"),down=buttonBase("Bajar prioridad");
     up.textContent="▲";down.textContent="▼";
     up.style.width="30px";down.style.width="30px";
     up.disabled=index===0;down.disabled=index===visible.length-1;
@@ -211,7 +211,8 @@ function renderPriorityOverlays(){
     up.onclick=e=>{e.preventDefault();e.stopPropagation();moveCleaning(id,-1)};
     down.onclick=e=>{e.preventDefault();e.stopPropagation();moveCleaning(id,1)};
     box.append(up,down);
-    document.body.appendChild(box);
+    row.appendChild(box);
+    row.style.paddingRight=Math.max(parseInt(getComputedStyle(row).paddingRight)||0,76)+"px";
   });
 }
 function enhanceCleaningOrder(){
