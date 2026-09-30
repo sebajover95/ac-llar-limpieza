@@ -10,12 +10,12 @@ const css=`
 `;const st=document.createElement("style");st.textContent=css;document.head.appendChild(st);
 const tab=document.createElement("button");tab.id="acllar-repaso-tab-t";tab.innerHTML="↻ VEHÍCULOS A REPASAR <span id="acllar-repaso-count-t"></span>";document.body.appendChild(tab);
 const modal=document.createElement("div");modal.id="acllar-repaso-modal-t";modal.innerHTML=`<div id="acllar-repaso-card-t"><div style="display:flex;align-items:center;gap:8px"><div style="font-size:22px;font-weight:800;flex:1">VEHÍCULOS A REPASAR</div><button id="acrt-close" class="acrt-btn" style="background:#fff;border:1px solid #d6ded8">Cerrar</button></div><div id="acrt-list" style="margin-top:6px"></div></div>`;document.body.appendChild(modal);
-const $=id=>document.getElementById(id);let knownCount=null;let loading=false;
+const $=id=>document.getElementById(id);let knownIds=null;let loading=false;
 async function load(){
  const list=$("acrt-list");list.innerHTML='<div class="acrt-row">Cargando repasos…</div>';
  const q=await sb.from("limpieza_repasos").select("id,fecha,ac_id,zona,detalle,estado,creado_at").eq("estado","pendiente").order("creado_at",{ascending:false});
  if(q.error){list.innerHTML='<div class="acrt-row">No se pudieron cargar los repasos: '+esc(q.error.message)+'</div>';return}
- const rows=q.data||[];const countEl=$("acllar-repaso-count-t");if(countEl){countEl.textContent=rows.length;countEl.style.display=rows.length?"inline-flex":"none"}if(knownCount!==null&&rows.length>knownCount){const nuevos=rows.length-knownCount;try{navigator.vibrate?.([250,120,250])}catch{};alert("🚨 NUEVO REPASO\nHay "+nuevos+" vehículo"+(nuevos===1?"":"s")+" nuevo"+(nuevos===1?"":"s")+" para repasar.");}knownCount=rows.length;if(!rows.length){list.innerHTML='<div class="acrt-row" style="text-align:center;color:#5d6b65;padding:25px">No hay vehículos pendientes de repaso. 👍</div>';return}
+ const rows=q.data||[];const countEl=$("acllar-repaso-count-t");if(countEl){countEl.textContent=rows.length;countEl.style.display=rows.length?"inline-flex":"none"}const ids=new Set(rows.map(x=>String(x.id)));if(knownIds!==null){const nuevos=rows.filter(x=>!knownIds.has(String(x.id)));if(nuevos.length){try{navigator.vibrate?.([250,120,250])}catch{};alert("🚨 NUEVO REPASO\n"+nuevos.map(x=>x.ac_id).join(", ")+" entró/entraron en vehículos a repasar.");}}knownIds=ids;if(!rows.length){list.innerHTML='<div class="acrt-row" style="text-align:center;color:#5d6b65;padding:25px">No hay vehículos pendientes de repaso. 👍</div>';return}
  const ids=rows.map(x=>x.id),fr=await sb.from("limpieza_repaso_fotos").select("id,repaso_id,storage_path,nombre_archivo").in("repaso_id",ids),photos=fr.data||[],by=new Map();
  for(const p of photos){if(!by.has(p.repaso_id))by.set(p.repaso_id,[]);const u=await sb.storage.from("limpieza-repasos").createSignedUrl(p.storage_path,3600);by.get(p.repaso_id).push({...p,url:u.data?.signedUrl||""})}
  list.innerHTML="";
