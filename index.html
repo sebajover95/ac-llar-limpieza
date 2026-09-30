@@ -767,6 +767,12 @@ let vp={sin_limpieza:0,limpia_hoy:1,limpiada:2,ya_lista:3,otra_sede:4},Pf=0;for(
         });
       }
 
+      // Una limpieza terminada en la tabla real siempre prevalece sobre cualquier fuente de planificación local.
+      for(let ac of cloudCompletedIds){
+        let item=wantedMap.get(String(ac));
+        if(item)item.hecha=true;
+      }
+
       let wanted=[...wantedMap.values()];
       let wantedIds=new Set(wanted.map(S=>S.ac_id));
 
