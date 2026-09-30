@@ -3,7 +3,7 @@ const sb=window.__ACLLAR_SUPABASE;
 if(!sb)return;
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const css=`
-#acllar-repaso-tab{position:static;z-index:20;background:#c24b3f;color:#fff;border:1px solid #c24b3f;border-radius:11px;padding:9px 13px;min-height:42px;font:700 13px Inter,system-ui;box-shadow:none;white-space:nowrap;cursor:pointer}
+#acllar-repaso-tab{display:none!important}
 #acllar-repaso-modal{position:fixed;inset:0;z-index:99999;background:rgba(21,48,43,.48);display:none;align-items:flex-start;justify-content:center;padding:24px;overflow:auto}
 #acllar-repaso-card{width:min(760px,100%);background:#e7ece8;border-radius:22px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.25);font-family:Inter,system-ui;color:#15302b}
 #acllar-repaso-card input,#acllar-repaso-card textarea{width:100%;box-sizing:border-box;border:1px solid #d6ded8;border-radius:12px;background:#fff;padding:12px;font:inherit}
@@ -12,19 +12,7 @@ const css=`
 `;
 const st=document.createElement("style");st.textContent=css;document.head.appendChild(st);
 const tab=document.createElement("button");tab.id="acllar-repaso-tab";tab.textContent="↻ REPASAR VEHÍCULOS";document.body.appendChild(tab);
-function placeRepasosTab(){
-  const candidates=[...document.querySelectorAll("button,a,[role=button]")];
-  const anchor=candidates.find(x=>/^(CÁLCULO|CALCULO)$/.test((x.textContent||"").trim()))
-    || candidates.find(x=>/FACTURACI[ÓO]N/.test((x.textContent||"").trim()))
-    || candidates.find(x=>/ESTAD[ÍI]STICAS/.test((x.textContent||"").trim()));
-  if(!anchor)return;
-  const parent=anchor.parentElement;
-  if(!parent)return;
-  tab.style.position="static";tab.style.transform="none";tab.style.margin="0";
-  tab.style.order="99";
-  parent.appendChild(tab);
-}
-setTimeout(placeRepasosTab,300);setTimeout(placeRepasosTab,1200);setTimeout(placeRepasosTab,2500);
+function placeRepasosTab(){}\n
 const modal=document.createElement("div");modal.id="acllar-repaso-modal";modal.innerHTML=`<div id="acllar-repaso-card">
 <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="font-size:22px;font-weight:800;flex:1">REPASAR VEHÍCULOS</div><button id="acr-close" class="acr-btn acr-muted">Cerrar</button></div>
 <div style="background:#fff;border:1px solid #d6ded8;border-radius:16px;padding:14px">
