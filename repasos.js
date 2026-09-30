@@ -1,4 +1,4 @@
-{
+(function(){
 const sb=window.__ACLLAR_SUPABASE;
 if(!sb)return;
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
