@@ -1,4 +1,4 @@
-{
+(function(){
 const sb=window.supabase.createClient("https://gewwdkmxbdwisetwuyvi.supabase.co","sb_publishable_jLCL0bNDqvLmKqa7aj1iWw_G5JtJIPY");
 if(!sb)return;
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
