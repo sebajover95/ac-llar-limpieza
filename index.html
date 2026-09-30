@@ -99,7 +99,7 @@ const normalizeAc=v=>{let x=String(v||"").trim().toUpperCase();return /^\d{3}[A-
 async function signed(path){const r=await sb.storage.from("limpieza-repasos").createSignedUrl(path,3600);return r.data?.signedUrl||""}
 async function load(){
   const list=$("acr-list"); list.innerHTML='<div style="padding:14px;color:#5d6b65">Cargando…</div>';
-  const q=await sb.from("limpieza_repasos").select("id,fecha,ac_id,zona,detalle:zona,estado,creado_at").eq("estado","pendiente").order("creado_at",{ascending:false});
+  const q=await sb.from("limpieza_repasos").select("id,fecha,ac_id,zona,detalle,estado,creado_at").eq("estado","pendiente").order("creado_at",{ascending:false});
   if(q.error){list.innerHTML='<div class="acr-row">No se pudieron cargar los repasos: '+esc(q.error.message)+'</div>';return}
   const rows=q.data||[];
   if(!rows.length){list.innerHTML='<div class="acr-row" style="color:#5d6b65">No hay vehículos pendientes de repaso.</div>';return}
@@ -123,10 +123,9 @@ $("acr-save").onclick=async()=>{
   btn.disabled=true;msg.textContent="Guardando…";msg.style.color="#5d6b65";
   try{
     const ses=await sb.auth.getSession(),uid=ses.data.session?.user?.id||null;
-    const ins=await sb.from("limpieza_repasos").insert({ac_id:ac,zona,creado_por:uid}).select("id").single();
+    const ins=await sb.from("limpieza_repasos").insert({ac_id:ac,zona,detalle:detalle||null,creado_por:uid}).select("id").single();
     if(ins.error)throw ins.error;
     const rid=ins.data.id;
-    if(detalle){await sb.from("limpieza_repasos").update({zona:zona+" — "+detalle}).eq("id",rid)}
     for(let i=0;i<files.length;i++){
       let f=files[i];
       if(f.size>1800000){try{f=await new Promise((res,rej)=>{const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const max=1600,sc=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext("2d").drawImage(im,0,0,c.width,c.height);c.toBlob(b=>{URL.revokeObjectURL(u);b?res(new File([b],"foto.jpg",{type:"image/jpeg"})):rej(new Error("No se pudo preparar la foto"))},"image/jpeg",.82)};im.onerror=rej;im.src=u})}catch{}}
