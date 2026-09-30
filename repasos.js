@@ -12,7 +12,8 @@ const css=`
 `;
 const st=document.createElement("style");st.textContent=css;document.head.appendChild(st);
 const tab=document.createElement("button");tab.id="acllar-repaso-tab";tab.textContent="↻ REPASAR VEHÍCULOS";document.body.appendChild(tab);
-function placeRepasosTab(){}\n
+function placeRepasosTab(){}
+
 const modal=document.createElement("div");modal.id="acllar-repaso-modal";modal.innerHTML=`<div id="acllar-repaso-card">
 <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="font-size:22px;font-weight:800;flex:1">REPASAR VEHÍCULOS</div><button id="acr-close" class="acr-btn acr-muted">Cerrar</button></div>
 <div style="background:#fff;border:1px solid #d6ded8;border-radius:16px;padding:14px">
