@@ -514,6 +514,50 @@ vf=async S=>{
       if(!active)return;
       let rows=res.data||[];
 
+      // HISTORICAL-CLOUD-FALLBACK-V1
+      // Las limpiezas antiguas pueden existir en __ACLLAR_SOURCE_OF_TRUTH__ aunque
+      // todavía no tengan fila en public.limpiezas. No las dejamos fuera de la app:
+      // se incorporan SOLO para lectura/historial y no modifican Supabase.limpiezas.
+      try{
+        let histRes=await sb.from("acllar_app_data")
+          .select("value")
+          .eq("key","__ACLLAR_SOURCE_OF_TRUTH__")
+          .maybeSingle();
+        if(!histRes.error && histRes.data?.value){
+          let source=JSON.parse(histRes.data.value||"{}");
+          let historial=source?.historial;
+          if(historial&&typeof historial==="object"){
+            let seen=new Set(rows.map(row=>`${row.ac_id}|${Ze(new Date(row.inicio))}`));
+            for(let [fecha,dia] of Object.entries(historial)){
+              if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(fecha)||!dia?.cleaned)continue;
+              for(let [taskKey,ac] of Object.entries(dia.cleaned)){
+                let acId=String(ac||"").trim();
+                if(!acId)continue;
+                let dedupeKey=`${acId}|${fecha}`;
+                if(seen.has(dedupeKey))continue;
+                seen.add(dedupeKey);
+                rows.push({
+                  id:`historical-${taskKey}`,
+                  ac_id:acId,
+                  tamano:(dia.tamanoPorAc&&dia.tamanoPorAc[acId])||source?.tamanoPorId?.[acId]||"Grande",
+                  empresa:null,
+                  nombre:null,
+                  inicio:`${fecha}T12:00:00`,
+                  fin:null,
+                  estado:"terminada",
+                  usuario_id:null,
+                  created_at:null,
+                  _historicalSource:true,
+                  _historicalTaskKey:taskKey
+                });
+              }
+            }
+          }
+        }
+      }catch(e){
+        console.warn("No se pudo cargar el historial de limpiezas desde la fuente de verdad:",e);
+      }
+
       se(prev=>{
         let next={...prev},changed=false;
         for(let row of rows){
