@@ -357,8 +357,7 @@ vf=async S=>{
                 let acId=String(ac||"").trim();
                 if(!acId)continue;
                 // El historial es acumulativo: la fecha real está en la clave de la tarea.
-                let taskDateMatch=String(taskKey).match(/(?:^|\\|)(\\d{4}-\\d{2}-\\d{2})(?:\\||$)/);
-                let realFecha=taskDateMatch?.[1]||fecha;
+                let realFecha=String(taskKey).split("|").find(part=>/^\d{4}-\d{2}-\d{2}$/.test(part))||fecha;
                 let dedupeKey=`${acId}|${realFecha}`;
                 if(seen.has(dedupeKey))continue;
                 seen.add(dedupeKey);
