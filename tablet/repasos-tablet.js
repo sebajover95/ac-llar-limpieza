@@ -49,11 +49,13 @@ let firstLoad=true;
 async function load(){
  const list=$("acr-list");
  const q=await sb.from("limpieza_repasos")
-   .select("id,fecha,ac_id,zona,detalle,estado,creado_at")
+   .select("id,fecha,ac_id,zona,detalle,estado,creado_at,completado_por,completado_at")
    .eq("estado","pendiente")
    .order("creado_at",{ascending:false});
  if(q.error){
-   list.innerHTML='<div class="acr-row">No se pudieron cargar los repasos: '+esc(q.error.message)+'</div>';
+   $("acllar-repaso-badge").textContent="!";
+   tab.style.display="block";
+   list.innerHTML='<div class="acr-row" style="border:2px solid #c24b3f">No se pudieron cargar los repasos: '+esc(q.error.message)+'</div>';
    return;
  }
  const rows=q.data||[];
@@ -89,7 +91,7 @@ async function load(){
 
 async function finish(id,btn){
  btn.disabled=true;btn.textContent="GUARDANDO…";
- const r=await sb.from("limpieza_repasos").update({estado:"terminado",terminado_at:new Date().toISOString()}).eq("id",id);
+ const ses=await sb.auth.getSession();\n const uid=ses.data.session?.user?.id||null;\n const r=await sb.from("limpieza_repasos").update({estado:"terminado",completado_at:new Date().toISOString(),completado_por:uid}).eq("id",id);
  if(r.error){alert("No se pudo marcar el repaso: "+r.error.message);btn.disabled=false;btn.textContent="MARCAR REPASO TERMINADO";return}
  await load();
 }
@@ -106,10 +108,14 @@ $("acr-close").onclick=()=>modal.style.display="none";
 modal.addEventListener("click",e=>{if(e.target===modal)modal.style.display="none"});
 
 (async()=>{
- if("Notification" in window && Notification.permission==="default"){
-   try{await Notification.requestPermission()}catch{}
+ let session=null;
+ try{session=(await sb.auth.getSession()).data.session||null}catch(e){console.error(e)}
+ if(session) await load();
+ else {
+   $("acllar-repaso-badge").textContent="!";
+   tab.style.display="block";
  }
- await load();
- setInterval(load,5000);
+ sb.auth.onAuthStateChange((_event,newSession)=>{if(newSession) setTimeout(load,0)});
+ setInterval(async()=>{try{const ses=(await sb.auth.getSession()).data.session;if(ses)await load()}catch(e){console.error(e)}},5000);
 })();
 })();
