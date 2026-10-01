@@ -41,10 +41,30 @@ async function load(){
   list.innerHTML="";
   rows.forEach(x=>{
     const el=document.createElement("div");el.className="acr-row";
-    el.innerHTML='<div style="display:flex;align-items:center;gap:8px"><b style="font:700 22px Space Mono,monospace">'+esc(x.ac_id)+'</b><span style="background:#fff6e5;border:1px solid #f3d28a;border-radius:999px;padding:4px 8px;font-size:11px">PENDIENTE</span></div><div style="font-weight:700;margin-top:7px">Zona: '+esc(x.zona)+'</div><div style="font-size:12px;color:#5d6b65;margin-top:4px">'+new Date(x.creado_at).toLocaleString("es-ES")+'</div>';
+    el.innerHTML='<div style="display:flex;align-items:center;gap:8px"><b style="font:700 22px Space Mono,monospace">'+esc(x.ac_id)+'</b><span style="background:#fff6e5;border:1px solid #f3d28a;border-radius:999px;padding:4px 8px;font-size:11px">PENDIENTE</span></div><div style="font-weight:700;margin-top:7px">Zona: '+esc(x.zona)+'</div>'+(x.detalle?'<div style="margin-top:6px">'+esc(x.detalle)+'</div>':'')+'<div style="font-size:12px;color:#5d6b65;margin-top:4px">'+new Date(x.creado_at).toLocaleString("es-ES")+'</div>';
     const ps=by.get(x.id)||[];ps.forEach(p=>{if(p.url){const im=document.createElement("img");im.className="acr-photo";im.src=p.url;im.alt=p.nombre_archivo||"Foto del repaso";el.appendChild(im)}});
+    const del=document.createElement("button");
+    del.className="acr-btn acr-danger";del.style.marginTop="12px";del.textContent="ELIMINAR REPASO";
+    del.onclick=()=>deleteRepaso(x,del);
+    el.appendChild(del);
     list.appendChild(el);
   });
+}
+
+async function deleteRepaso(x,btn){
+  if(!confirm("¿Eliminar este repaso de "+x.ac_id+"? Esta acción no se puede deshacer."))return;
+  btn.disabled=true;btn.textContent="ELIMINANDO…";
+  try{
+    const fr=await sb.from("limpieza_repaso_fotos").select("id,storage_path").eq("repaso_id",x.id);
+    if(fr.error)throw fr.error;
+    const paths=(fr.data||[]).map(p=>p.storage_path).filter(Boolean);
+    if(paths.length){const sr=await sb.storage.from("limpieza-repasos").remove(paths);if(sr.error)throw sr.error;}
+    const dr=await sb.from("limpieza_repaso_fotos").delete().eq("repaso_id",x.id);
+    if(dr.error)throw dr.error;
+    const rr=await sb.from("limpieza_repasos").delete().eq("id",x.id);
+    if(rr.error)throw rr.error;
+    await load();
+  }catch(e){alert("No se pudo eliminar el repaso: "+(e.message||e));btn.disabled=false;btn.textContent="ELIMINAR REPASO"}
 }
 tab.onclick=async()=>{modal.style.display="flex";await load()};
 $("acr-close").onclick=()=>modal.style.display="none";
