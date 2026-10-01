@@ -22,7 +22,7 @@ jobs:
           p = Path("index.html")
           s = p.read_text(encoding="utf-8")
           tag = '<script src="./lavadero.js"></script>'
-          if tag not in s:
+          if './lavadero.js' not in s:
               marker = "</body>"
               if marker not in s:
                   raise SystemExit("No se encontró </body> en index.html")
