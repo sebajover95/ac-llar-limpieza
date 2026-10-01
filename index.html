@@ -356,7 +356,10 @@ vf=async S=>{
               for(let [taskKey,ac] of Object.entries(dia.cleaned)){
                 let acId=String(ac||"").trim();
                 if(!acId)continue;
-                let dedupeKey=`${acId}|${fecha}`;
+                // El historial es acumulativo: la fecha real está en la clave de la tarea.
+                let taskDateMatch=String(taskKey).match(/(?:^|\\|)(\\d{4}-\\d{2}-\\d{2})(?:\\||$)/);
+                let realFecha=taskDateMatch?.[1]||fecha;
+                let dedupeKey=`${acId}|${realFecha}`;
                 if(seen.has(dedupeKey))continue;
                 seen.add(dedupeKey);
                 rows.push({
@@ -365,7 +368,7 @@ vf=async S=>{
                   tamano:(dia.tamanoPorAc&&dia.tamanoPorAc[acId])||source?.tamanoPorId?.[acId]||"Grande",
                   empresa:null,
                   nombre:null,
-                  inicio:`${fecha}T12:00:00`,
+                  inicio:`${realFecha}T12:00:00`,
                   fin:null,
                   estado:"terminada",
                   usuario_id:null,
