@@ -91,7 +91,9 @@ async function load(){
 
 async function finish(id,btn){
  btn.disabled=true;btn.textContent="GUARDANDO…";
- const ses=await sb.auth.getSession();\n const uid=ses.data.session?.user?.id||null;\n const r=await sb.from("limpieza_repasos").update({estado:"terminado",completado_at:new Date().toISOString(),completado_por:uid}).eq("id",id);
+ const ses=await sb.auth.getSession();
+ const uid=ses.data.session?.user?.id||null;
+ const r=await sb.from("limpieza_repasos").update({estado:"terminado",completado_at:new Date().toISOString(),completado_por:uid}).eq("id",id);
  if(r.error){alert("No se pudo marcar el repaso: "+r.error.message);btn.disabled=false;btn.textContent="MARCAR REPASO TERMINADO";return}
  await load();
 }
