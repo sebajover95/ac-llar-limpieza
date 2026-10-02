@@ -332,7 +332,7 @@ vf=async S=>{
       let sb=window.__ACLLAR_SUPABASE;
       let session=(await sb.auth.getSession()).data.session;
       if(!session?.user)return;
-      let res=await sb.from("limpiezas").select("id,ac_id,tamano,empresa,nombre,inicio,fin,estado,usuario_id,created_at").eq("estado","terminada").order("inicio",{ascending:!0});
+      let res=await sb.from("limpiezas").select("id,ac_id,tamano,empresa,nombre,inicio,fin,estado,usuario_id,created_at,tiempo_acumulado_segundos,tramo_inicio_at").eq("estado","terminada").order("inicio",{ascending:!0});
       if(res.error)throw res.error;
       if(!active)return;
       let rows=res.data||[];
@@ -459,7 +459,7 @@ Object.keys(cleaned).forEach(existingKey=>{
 
           let inicio=row.inicio?new Date(row.inicio).getTime():null;
           let fin=row.fin?new Date(row.fin).getTime():null;
-          let duracionMin=inicio&&fin?Math.round(((fin-inicio)/60000)*10)/10:null;
+          let acumSeg=Number(row.tiempo_acumulado_segundos||0);let tramoIni=row.tramo_inicio_at?new Date(row.tramo_inicio_at).getTime():null;let runSeg=tramoIni&&fin?Math.max(0,(fin-tramoIni)/1000):(acumSeg>0?0:(inicio&&fin?Math.max(0,(fin-inicio)/1000):0));let duracionMin=fin?Math.round(((acumSeg+runSeg)/60)*10)/10:null;
           let old=tiemposPorAc[row.ac_id];
           let nuevo={inicio:row.inicio||null,fin:row.fin||null,duracionMin,empresa:row.empresa||null,nombre:row.nombre||null,usuario_id:row.usuario_id||null};
           if(JSON.stringify(old)!==JSON.stringify(nuevo)){tiemposPorAc[row.ac_id]=nuevo;changedDia=true}
