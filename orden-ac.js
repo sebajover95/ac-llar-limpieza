@@ -304,4 +304,98 @@ async function tick(){
   else { enhanceNative(); enhanceCleaningOrder(); }
 }
 tick();setInterval(tick,1000);
+/* AC·LLAR · identificador de sesión y cambio de usuario */
+(()=>{
+  "use strict";
+  if(window.__ACLLAR_SESSION_UI__)return;
+  window.__ACLLAR_SESSION_UI__=true;
+
+  const sb=()=>window.__ACLLAR_SUPABASE||null;
+  const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+
+  function ensureButton(){
+    if(document.getElementById("acllar-session-settings"))return;
+    const b=document.createElement("button");
+    b.id="acllar-session-settings";
+    b.type="button";
+    b.setAttribute("aria-label","Configuración y sesión");
+    b.title="Sesión y configuración";
+    b.innerHTML='<span style="font-size:20px;line-height:1">⚙</span>';
+    b.style.cssText=[
+      "position:fixed","right:14px","bottom:14px","z-index:2147483647",
+      "width:44px","height:44px","border-radius:50%","border:1px solid #E3E7E9",
+      "background:#fff","color:#3A1F0F","box-shadow:0 5px 20px rgba(32,39,43,.18)",
+      "display:flex","align-items:center","justify-content:center","cursor:pointer"
+    ].join(";");
+    b.onclick=openPanel;
+    document.body.appendChild(b);
+  }
+
+  async function getSessionInfo(){
+    const c=sb();
+    if(!c?.auth)return null;
+    try{
+      const r=await c.auth.getSession();
+      const session=r.data?.session;
+      if(!session?.user)return null;
+      let role="—";
+      try{
+        const p=await c.from("profiles").select("rol").eq("id",session.user.id).maybeSingle();
+        if(p.data?.rol)role=p.data.rol;
+      }catch{}
+      return {email:session.user.email||"—",role,userId:session.user.id,expires:session.expires_at};
+    }catch{return null}
+  }
+
+  function closePanel(){
+    document.getElementById("acllar-session-panel")?.remove();
+  }
+
+  async function openPanel(){
+    closePanel();
+    const panel=document.createElement("div");
+    panel.id="acllar-session-panel";
+    panel.style.cssText=[
+      "position:fixed","right:14px","bottom:68px","z-index:2147483647",
+      "width:min(340px,calc(100vw - 28px))","background:#fff",
+      "border:1px solid #E3E7E9","border-radius:16px","padding:16px",
+      "box-shadow:0 14px 45px rgba(32,39,43,.22)",
+      "font-family:Inter,system-ui,-apple-system,sans-serif","color:#20272B"
+    ].join(";");
+    panel.innerHTML='<div style="font-weight:700;font-size:15px">Sesión activa</div><div style="margin-top:10px;color:#66727A;font-size:12px">Comprobando…</div>';
+    document.body.appendChild(panel);
+
+    const info=await getSessionInfo();
+    if(!info){
+      panel.innerHTML='<div style="font-weight:700;font-size:15px">Sin sesión</div><div style="margin-top:8px;color:#66727A;font-size:12px">No hay una cuenta iniciada en este dispositivo.</div><button id="acllar-session-close" type="button" style="margin-top:12px;width:100%;height:38px;border:1px solid #E3E7E9;border-radius:9px;background:#fff;font-weight:600">Cerrar</button>';
+      document.getElementById("acllar-session-close").onclick=closePanel;
+      return;
+    }
+
+    const roleLabel={gestion:"Gestión",limpieza:"Limpieza",lavadero:"Lavadero"}[info.role]||info.role;
+    panel.innerHTML=
+      '<div style="font-weight:700;font-size:15px">Sesión activa</div>'+
+      '<div style="margin-top:12px;padding:11px;border-radius:11px;background:#F5F7F8;border:1px solid #E3E7E9">'+
+        '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#66727A">Usuario</div>'+
+        '<div style="margin-top:3px;font-size:14px;font-weight:600;word-break:break-word">'+esc(info.email)+'</div>'+
+        '<div style="margin-top:9px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#66727A">Rol</div>'+
+        '<div style="margin-top:3px;font-size:14px;font-weight:600">'+esc(roleLabel)+'</div>'+
+      '</div>'+
+      '<div style="margin-top:10px;color:#66727A;font-size:11px">Esta es la cuenta guardada en este dispositivo. El acceso a las secciones depende de su rol.</div>'+
+      '<button id="acllar-session-switch" type="button" style="margin-top:12px;width:100%;height:40px;border:0;border-radius:9px;background:#3A1F0F;color:#fff;font-weight:600">Cerrar sesión / cambiar usuario</button>'+
+      '<button id="acllar-session-close" type="button" style="margin-top:7px;width:100%;height:36px;border:1px solid #E3E7E9;border-radius:9px;background:#fff;font-weight:600">Cerrar</button>';
+
+    document.getElementById("acllar-session-close").onclick=closePanel;
+    document.getElementById("acllar-session-switch").onclick=async()=>{
+      const btn=document.getElementById("acllar-session-switch");
+      btn.disabled=true;btn.textContent="Cerrando sesión…";
+      try{await sb().auth.signOut()}catch{}
+      location.reload();
+    };
+  }
+
+  ensureButton();
+  setInterval(ensureButton,3000);
+})();
+
 })();
