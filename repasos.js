@@ -18,7 +18,7 @@ const modal=document.createElement("div");modal.id="acllar-repaso-modal";modal.i
 <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="font-size:22px;font-weight:800;flex:1">REPASAR VEHÍCULOS</div><button id="acr-close" class="acr-btn acr-muted">Cerrar</button></div>
 <div style="background:#fff;border:1px solid #d6ded8;border-radius:16px;padding:14px">
 <div style="font-weight:700;margin-bottom:10px">Nuevo aviso de repaso</div>
-<div class="acr-grid"><div><label style="font-size:12px;font-weight:700">VEHÍCULO</label><input id="acr-ac" placeholder="Ej. 307 o AC-307"></div><div><label style="font-size:12px;font-weight:700">ZONA A REPASAR</label><input id="acr-zona" placeholder="Ej. baño, cocina, suelo…"></div></div>
+<div class="acr-grid"><div><label style="font-size:12px;font-weight:700">VEHÍCULO</label><input id="acr-ac" placeholder="Ej. 307 o AC-307"></div><div><label style="font-size:12px;font-weight:700">ZONA A REPASAR</label><div style="display:flex;gap:7px"><input id="acr-zona" placeholder="Ej. baño, cocina, suelo…" style="flex:1"><button id="acr-add-zone" type="button" class="acr-btn acr-muted" style="white-space:nowrap">Añadir zona</button></div><div id="acr-zones" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div></div></div>
 <div style="margin-top:10px"><label style="font-size:12px;font-weight:700">DETALLE (opcional)</label><textarea id="acr-detalle" placeholder="Qué debe revisarse exactamente…"></textarea></div>
 <div style="margin-top:10px"><label style="font-size:12px;font-weight:700">FOTOS</label><input id="acr-files" type="file" accept="image/jpeg,image/png,image/webp" multiple style="padding:8px"></div>
 <div id="acr-msg" style="font-size:13px;margin-top:8px;color:#5d6b65"></div>
@@ -26,7 +26,7 @@ const modal=document.createElement("div");modal.id="acllar-repaso-modal";modal.i
 </div>
 <div style="font-weight:800;margin-top:18px">REPASOS PENDIENTES</div><div id="acr-list"></div>
 </div>`;document.body.appendChild(modal);
-const $=id=>document.getElementById(id);
+const $=id=>document.getElementById(id);let pendingZones=[];
 const normalizeAc=v=>{let x=String(v||"").trim().toUpperCase();return /^\d{3}[A-Z]?$/.test(x)?"AC-"+x:x};
 async function signed(path){const r=await sb.storage.from("limpieza-repasos").createSignedUrl(path,3600);return r.data?.signedUrl||""}
 async function load(){
@@ -69,18 +69,31 @@ async function deleteRepaso(x,btn){
 tab.onclick=async()=>{modal.style.display="flex";await load()};
 $("acr-close").onclick=()=>modal.style.display="none";
 modal.addEventListener("click",e=>{if(e.target===modal)modal.style.display="none"});
+function renderZones(){const box=$("acr-zones");if(!box)return;box.innerHTML="";pendingZones.forEach((z,i)=>{const chip=document.createElement("span");chip.style.cssText="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #d6ded8;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:700";chip.textContent=z;const b=document.createElement("button");b.type="button";b.textContent="×";b.style.cssText="border:0;background:transparent;font-weight:900;cursor:pointer;color:#c24b3f";b.onclick=()=>{pendingZones.splice(i,1);renderZones()};chip.appendChild(b);box.appendChild(chip)})}
+function addZone(){const input=$("acr-zona"),z=input.value.trim();if(!z)return;const key=z.toLocaleLowerCase("es-ES");if(pendingZones.some(x=>x.toLocaleLowerCase("es-ES")===key)){input.value="";return}pendingZones.push(z);input.value="";renderZones();input.focus()}
+$("acr-add-zone").onclick=addZone;$("acr-zona").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addZone()}});
 $("acr-save").onclick=async()=>{
-  const msg=$("acr-msg"),btn=$("acr-save");let ac=normalizeAc($("acr-ac").value),zona=$("acr-zona").value.trim(),detalle=$("acr-detalle").value.trim(),files=[...($("acr-files").files||[])];
-  if(!ac||!zona){msg.textContent="Indica el vehículo y la zona a repasar.";msg.style.color="#c24b3f";return}
-  btn.disabled=true;msg.textContent="Guardando…";msg.style.color="#5d6b65";
+  const msg=$("acr-msg"),btn=$("acr-save");let ac=normalizeAc($("acr-ac").value),zonaActual=$("acr-zona").value.trim();if(zonaActual)addZone();let zonas=[...pendingZones],detalle=$("acr-detalle").value.trim(),files=[...($("acr-files").files||[])];
+  if(!ac||!zonas.length){msg.textContent="Indica el vehículo y añade al menos una zona.";msg.style.color="#c24b3f";return}
+  btn.disabled=true;msg.textContent="Guardando "+zonas.length+" zona"+(zonas.length!==1?"s":"")+"…";msg.style.color="#5d6b65";
+  const created=[];
   try{
     const ses=await sb.auth.getSession(),uid=ses.data.session?.user?.id||null;
-    const ins=await sb.from("limpieza_repasos").insert({ac_id:ac,zona,detalle:detalle||null,creado_por:uid}).select("id").single();
-    if(ins.error)throw ins.error;
-    const rid=ins.data.id;
-    for(let i=0;i<files.length;i++){
-      let f=files[i];
-      if(f.size>1800000){try{f=await new Promise((res,rej)=>{const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const max=1600,sc=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*sc);c.height=Math.round(im.height*sc);c.getContext("2d").drawImage(im,0,0,c.width,c.height);c.toBlob(b=>{URL.revokeObjectURL(u);b?res(new File([b],"foto.jpg",{type:"image/jpeg"})):rej(new Error("No se pudo preparar la foto"))},"image/jpeg",.82)};im.onerror=rej;im.src=u})}catch{}}
+    for(const zona of zonas){
+      const ins=await sb.from("limpieza_repasos").insert({ac_id:ac,zona,detalle:detalle||null,creado_por:uid}).select("id").single();
+      if(ins.error)throw ins.error;
+      const rid=ins.data.id;created.push(rid);
+      for(let i=0;i<files.length;i++){
+        let f=files[i];
+        if(f.size>1800000){try{f=await new Promise((res,rej)=>{const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const max=1600,sc=Math.min(1,max/Math.max(im.width,im.height)),can=document.createElement("canvas");can.width=Math.round(im.width*sc);can.height=Math.round(im.height*sc);can.getContext("2d").drawImage(im,0,0,can.width,can.height);can.toBlob(b=>{URL.revokeObjectURL(u);b?res(new File([b],"foto.jpg",{type:"image/jpeg"})):rej(new Error("No se pudo preparar la foto"))},"image/jpeg",.82)};im.onerror=rej;im.src=u})}catch{}}
+        const ext=f.type==="image/png"?"png":f.type==="image/webp"?"webp":"jpg",path=rid+"/"+Date.now()+"-"+i+"."+ext;
+        const up=await sb.storage.from("limpieza-repasos").upload(path,f,{contentType:f.type==="image/png"?"image/png":f.type==="image/webp"?"image/webp":"image/jpeg",upsert:false});if(up.error)throw up.error;
+        const mr=await sb.from("limpieza_repaso_fotos").insert({repaso_id:rid,storage_path:path,nombre_archivo:f.name,mime_type:f.type,creado_por:uid});if(mr.error)throw mr.error;
+      }
+    }
+    $("acr-ac").value="";$("acr-zona").value="";$("acr-detalle").value="";$("acr-files").value="";pendingZones=[];renderZones();msg.textContent="Repaso guardado: "+zonas.length+" zona"+(zonas.length!==1?"s":"")+" independiente"+(zonas.length!==1?"s":"")+". Ya aparece en la tablet.";msg.style.color="#2f8f7c";await load();
+  }catch(e){if(created.length)await sb.from("limpieza_repasos").delete().in("id",created);msg.textContent="No se pudo guardar: "+(e.message||e);msg.style.color="#c24b3f"}finally{btn.disabled=false}
+};im.onerror=rej;im.src=u})}catch{}}
       const ext=f.type==="image/png"?"png":f.type==="image/webp"?"webp":"jpg",path=rid+"/"+Date.now()+"-"+i+"."+ext;
       const up=await sb.storage.from("limpieza-repasos").upload(path,f,{contentType:f.type==="image/png"?"image/png":f.type==="image/webp"?"image/webp":"image/jpeg",upsert:false});
       if(up.error)throw up.error;
