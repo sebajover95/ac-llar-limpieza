@@ -93,5 +93,6 @@ $("acr-save").onclick=async()=>{
     }
     $("acr-ac").value="";$("acr-zona").value="";$("acr-detalle").value="";$("acr-files").value="";pendingZones=[];renderZones();msg.textContent="Repaso guardado: "+zonas.length+" zona"+(zonas.length!==1?"s":"")+" independiente"+(zonas.length!==1?"s":"")+". Ya aparece en la tablet.";msg.style.color="#2f8f7c";await load();
   }catch(e){if(created.length)await sb.from("limpieza_repasos").delete().in("id",created);msg.textContent="No se pudo guardar: "+(e.message||e);msg.style.color="#c24b3f"}finally{btn.disabled=false}
+};
 
 })();
